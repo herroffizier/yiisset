@@ -191,7 +191,7 @@ class EClientScript extends CClientScript
 		$features = array_keys(array_filter(array(
 			'coffeescript'		 => $this->coffeeScriptExec,
 			'uglifyjs'			 => $this->uglifyjsExec && $this->optimizeScriptFiles && $this->combineScriptFiles,
-			'gzip precompress'	 => $this->saveGzippedCopy && ($this->combineCssFiles || $this->combineScriptFiles) && function_exists('gzencode') && !$this->zopfliExec,
+			'gzip precompress'	 => $this->saveGzippedCopy && ($this->combineCssFiles || $this->combineScriptFiles) && !$this->zopfliExec,
 			'zopfli precompress' => $this->saveGzippedCopy && ($this->combineCssFiles || $this->combineScriptFiles) && $this->zopfliExec,
 			'combining js'		 => $this->combineScriptFiles,
 			'combining css'		 => $this->combineCssFiles,
@@ -200,15 +200,30 @@ class EClientScript extends CClientScript
 		)));
 		
 		if ($features) {
-			Yii::trace('AssetMagic is running with '.implode(', ', $features));
+			Yii::trace('yiisset is running with '.implode(', ', $features));
 		}
 
 		parent::init();
 	}
 
 	/**
-	 * Return a hash for string.
-	 * Based on CAssetManager::hash().
+	 * Получить идентификатор текущей ревизии ресурсов, если это возможно.
+	 * В проивном случае будет возвращена дата изменения указанного пути.
+	 * 
+	 * @param  string $path 
+	 * @return string
+	 */
+	protected function getAssetVersion($path)
+	{
+		return 
+			(Yii::app()->assetManager instanceof EAssetManager && Yii::app()->assetManager->assetVersion)
+				? Yii::app()->assetManager->assetVersion
+				: (file_exists($path) ? filemtime($path) : time());
+	}
+
+	/**
+	 * Посчитать хеш от строки.
+	 * Заимствован из CAssetManager.
 	 * 
 	 * @param  string $string
 	 * @return string
@@ -219,8 +234,65 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Check if second file (copy) is newer than first file (source).
-	 * If copy is not exists, method returns false.
+	 * Get unique filename for combined files
+	 * 
+	 * @param string $name default filename
+	 * @param array $files files to be combined
+	 * @param string $type css media or script position
+	 * @return string unique filename
+	 */
+	private function getCombinedFileName($name, $files, $type = '')
+	{
+		$raw = '';
+		foreach ($files as $file) {
+			$raw .= "\0".$file.(file_exists($file) ? filemtime($file)."\0" : '');
+		}
+		$ext = ($type === '' ? '' : '-' . $type) . '-' . $this->hash($raw);
+		$pos = strrpos($name, '.');
+		$name = $pos === false ? $name . $ext : substr_replace($name, $ext, $pos, 0);
+		return strtr($name, '+=/ ', '--__');
+	}
+
+	/**
+	 * Get realpath of published file via its url, refer to {link: CAssetManager}
+	 * 
+	 * @return string local file path for this script or css url
+	 */
+	private function getLocalPath($url)
+	{
+		foreach ($this->_baseUrlMap as $baseUrl => $basePath) {
+			if (!strncmp($url, $baseUrl, strlen($baseUrl))) {
+				return $basePath . substr($url, strlen($baseUrl));
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Calculate the relative url
+	 * 
+	 * @param string $from source url, begin with slash and not end width slash.
+	 * @param string $to dest url
+	 * @return string result relative url
+	 */
+	private function getRelativeUrl($from, $to)
+	{
+		$relative = '';
+		while (true) {
+			if ($from === $to) {
+				return $relative;
+			} elseif ($from === dirname($from)) {
+				return $relative . substr($to, 1);
+			} elseif (!strncmp($from . '/', $to, strlen($from) + 1)) {
+				return $relative . substr($to, strlen($from) + 1);
+			}
+			$from = dirname($from);
+			$relative .= '../';
+		}
+	}
+
+	/**
+	 * Проверить, является ли второй файл ($copy) новее первого ($source).
 	 * 
 	 * @param  string  $file
 	 * @param  string  $copy
@@ -233,7 +305,80 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Compile each .coffee file into .js file.
+	 * Обработать файл $fromFile командой $command, результатом выполнения
+	 * которой должен стать $toFile.
+	 * 
+	 * Если $toFile не указан, то $fromFile будет предварительно перемещён
+	 * во временный файл и результатом выполнения команды будет $fromFile.
+	 * 
+	 * Для того, чтобы по нескольку раз один и тот же файл, создаётся $touchFile,
+	 * чья дата изменения дожна быть новее, чем у $fromFile.
+	 * Если указан $toFile, то в качесве $touchFile используется он.
+	 *
+	 * @throws CException если после выполнения команды результирующий файл не был создан
+	 *
+	 * @param  string 				$tool 			название команды, используется для лога
+	 * @param  string  				$command 		команда, может содержать метки #FROM_FILE# и #TO_FILE#
+	 * @param  string  				$fromFile 		исходный (и результирующий, если $toFile = null) файл
+	 * @param  string[optional]  	$toFile 		результирующий файл
+	 * @param  boolean[optional] 	$removeSource 	удалять ли исходный файл в случае успеха
+	 */
+	protected function optimizeFile($tool, $command, $fromFile, $toFile = null, $removeSource = true) 
+	{
+		$touchFile = $toFile ?: $fromFile.'.processed.'.preg_replace('/\s+/', '', $tool);
+
+		if ($this->isNewer($fromFile, $touchFile)) {
+			Yii::trace($touchFile.' is already processed with '.$tool.'.');
+			return;
+		}
+
+		if (!$toFile) {
+			$useTempFile = true;
+
+			$toFile = $fromFile;
+			$fromFile = $toFile.'.tmp';
+			rename($toFile, $fromFile);
+		}
+		else {
+			$useTempFile = false;
+		}
+
+		$command = 
+			str_replace(
+				array('#FROM_FILE#', '#TO_FILE#'), 
+				array(escapeshellarg($fromFile), escapeshellarg($toFile)), 
+				$command
+			);
+		$command = $command.' 2>&1';
+		exec($command, $output);
+		if ($output) {
+			$output = implode("\n", $output);
+			Yii::trace($tool.' ('.$command.') output: '.$output);
+		}
+
+		if (file_exists($toFile)) {
+			Yii::trace(
+				$tool.' saves '.number_format(filesize($fromFile) - filesize($toFile))." bytes\nfor "
+				.pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).'.'
+			);
+
+			if ($useTempFile || $removeSource) {
+				unlink($fromFile);
+			}
+		}
+		else {
+			if ($useTempFile) {
+				rename($fromFile, $toFile);
+			}
+
+			throw new CException($tool.' failed to optimize '.($useTempFile ? $toFile : $fromFile).'.');
+		}
+
+		touch($touchFile);
+	}
+
+	/**
+	 * Скомпилировать каждый .coffee файл в указанной позиции в JS.
 	 * 
 	 * @param  int $position
 	 */
@@ -283,8 +428,7 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Uglify file.
-	 * After uglifying empty $file.uglified will be created. 
+	 * Сжать JS при помощи Uglify.js
 	 * 
 	 * @param  string $file
 	 */
@@ -292,100 +436,51 @@ class EClientScript extends CClientScript
 	{
 		if (!$this->uglifyjsExec || !$this->optimizeScriptFiles) return;
 
-		$touchFile = $file.'.uglified';
-		if ($this->isNewer($file, $touchFile)) {
-			Yii::trace($touchFile.' is already uglified.');
-			return;
-		}
-
-		$tempFile = $file.'.tmp';
-		rename($file, $tempFile);
-
-		$cmd = 
-			escapeshellcmd(
-				$this->nodeExec.' '.escapeshellarg($this->uglifyjsExec)
-				.' '.escapeshellarg($tempFile)
-				.' -o '.escapeshellarg($file)
-			).' 2>&1';
-
-		$output = shell_exec($cmd);
-		if ($output) Yii::trace('Uglify.js ('.$cmd.') output: '.$output);
-
-		if (file_exists($file)) {
-			Yii::trace(
-				'Uglify.js saves '.number_format(filesize($tempFile) - filesize($file))." bytes\nfor "
-				.pathinfo($file, PATHINFO_BASENAME).'.'
-			);
-			unlink($tempFile);
-		}
-		else {
-			Yii::trace('Uglify.js failed to compress '.$file.'.');
-			rename($tempFile, $file);
-		}
-
-		touch($touchFile);
+		$cmd = $this->nodeExec.' '.escapeshellarg($this->uglifyjsExec).' #FROM_FILE# -o #TO_FILE#';
+		$this->optimizeFile('Uglify.js', $cmd, $file);
 	}
 
 	/**
-	 * Create gzipped copy for file (used by some webservers like nginx).
-	 * If possible, zopfli is used.
+	 * Создать gzipped копию файла.
+	 * Если возможно, используется Zopfli, в противном случае - gzip.
 	 * 
 	 * @param  string $file
 	 */
 	protected function createGzippedCopy($file)
 	{
+		if (!$this->saveGzippedCopy) return;
+
 		$gzippedFile = $file.'.gz';
 
-		if (
-			!$this->saveGzippedCopy 
-			|| (!function_exists('gzencode') && !$his->zopfliExec)
-		) {
-			return;
-		}
-
-		if ($this->isNewer($file, $gzippedFile)) {
-			Yii::trace($file.' already has its gzipped copy.');
-			return;
-		}
-
-		if ($this->zopfliExec) {
-			$cmd = 
-				escapeshellcmd(
-					$this->zopfliExec
-					.' '.escapeshellarg($file)
-				).' 2>&1';
-
-			$output = shell_exec($cmd);
+		if (false && $this->zopfliExec) {
+			$tool = 'Zopfli';
+			$cmd = $this->zopfliExec.' #FROM_FILE#';
 		}
 		else {
-			$fileBuffer = file_get_contents($file);
-			$compressedFileBuffer = gzencode($fileBuffer, 9);
-			file_put_contents($gzippedFile, $compressedFileBuffer);	
-
-			unset($fileBuffer);
-			unset($compressedFileBuffer);
+			$tool = 'Gzip';
+			$cmd = 'gzip --best -c #FROM_FILE# > #TO_FILE#';
 		}
 		
-		Yii::trace(
-			($this->zopfliExec ? 'Zopfli' : 'Gzip').' saves '.number_format(filesize($file) - filesize($gzippedFile))." bytes\nfor "
-			.pathinfo($file, PATHINFO_BASENAME).'.'
-		);
+		$this->optimizeFile($tool, $cmd, $file, $gzippedFile);
 	}
 
+	/**
+	 * Зарегистрирвовать скрипт LazyLoad в указанной позиции.
+	 * 
+	 * @param  int $position
+	 */
 	protected function registerLazyLoad($position)
 	{
 		if ($this->lazyLoadRegistered) return;
 		$this->lazyLoadRegistered = true;
 
-		$basePath = Yii::app()->assetManager->publish(__DIR__.'/assets');
+		$basePath = Yii::app()->assetManager->publish(__DIR__.'/../assets');
 		$this->registerScriptFile($basePath.'/'.(YII_DEBUG ? 'lazyload.js' : 'lazyload.min.js'), $position);
 
 	}
 
 	/**
-	 * Load all files at given position via LazyLoad.
-	 * If no LazyLoad was be registered earlier it will be registered
-	 * in current position. 
+	 * Загружать все файлы в указанной позиции через LazyLoad.
 	 * 
 	 * @param  int $position
 	 */
@@ -403,23 +498,9 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Get asset version (if asset manager supports one) or filemtime for path.
-	 * 
-	 * @param  string $path 
-	 * @return string
-	 */
-	protected function getAssetVersion($path)
-	{
-		return 
-			(Yii::app()->assetManager instanceof EAssetManager && Yii::app()->assetManager->assetVersion)
-				? Yii::app()->assetManager->assetVersion
-				: filemtime($path);
-	}
-
-	/**
-	 * Get concatenated scripts for given position.
-	 * Scripts for POS_READY and POS_LOAD will be wrapped in $(function() { ... })
-	 * and $(window).on('load', function() { ... }) functions accordingly.
+	 * Получить строку со всеми инлайновыми скриптами в указанной позиции.
+	 * Скрипты для позиций POS_READY and POS_LOAD will будут обёрнуты в функции
+	 * $(function() { ... }) и $(window).on('load', function() { ... }) соответственно.
 	 * 
 	 * @param  int $position
 	 * @return string
@@ -443,7 +524,9 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Write code for given position to file and register it.
+	 * Сохранить инлайновые скрипты в указанной позиции в общий файл.
+	 * Довольно бесполезная фича, единственная цель которой - избавить тело страницы
+	 * от инлайновых скриптов.
 	 * 
 	 * @param  int $position
 	 */
@@ -495,8 +578,8 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Combine the CSS files, if cached enabled then cache the result so we won't have to do that
-	 * Every time
+	 * Объединить css-файлы в один файл.
+	 * Код  взят из yii-EClientScript и немного дополнен.
 	 */
 	protected function combineCssFiles()
 	{
@@ -591,20 +674,21 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Combine script files, we combine them based on their position, each is combined in a separate file
-	 * to load the required data in the required location.
-	 * @param $type CClientScript the type of script files currently combined
+	 * Объединить все скрипты в один файл.
+	 * Код взят из yii-EClientScript и немного дополнен.
+	 * 
+	 * @param  int $position
 	 */
-	protected function combineScriptFiles($type = self::POS_HEAD)
+	protected function combineScriptFiles($position = self::POS_HEAD)
 	{
 		// Check the need for combination
-		if (!isset($this->scriptFiles[$type]) || count($this->scriptFiles[$type]) < 2) {
+		if (!isset($this->scriptFiles[$position]) || count($this->scriptFiles[$position]) < 2) {
 			return;
 		}
 		$toCombine = array();
 		$indexCombine = 0;
 		$scriptName = $scriptValue = array();
-		foreach ($this->scriptFiles[$type] as $url => $value) {
+		foreach ($this->scriptFiles[$position] as $url => $value) {
 			if (is_array($value) || !($file = $this->getLocalPath($url))) {
 				$scriptName[] = $url;
 				$scriptValue[] = $value;
@@ -614,7 +698,7 @@ class EClientScript extends CClientScript
 		}
 		if (count($toCombine) > 1) {
 			// get unique combined filename
-			$fname = $this->getCombinedFileName($this->scriptFileName, array_values($toCombine), $type);
+			$fname = $this->getCombinedFileName($this->scriptFileName, array_values($toCombine), $position);
 			$fpath = Yii::app()->assetManager->basePath . DIRECTORY_SEPARATOR . $fname;
 			// check exists file
 			if (($valid = file_exists($fpath)) === true) {
@@ -648,66 +732,12 @@ class EClientScript extends CClientScript
 			$scriptValue[] = $url;
 		}
 		// use new scriptFiles list replace old ones
-		$this->scriptFiles[$type] = array_combine($scriptName, $scriptValue);
-	}
-
-	/**
-	 * Get realpath of published file via its url, refer to {link: CAssetManager}
-	 * @return string local file path for this script or css url
-	 */
-	private function getLocalPath($url)
-	{
-		foreach ($this->_baseUrlMap as $baseUrl => $basePath) {
-			if (!strncmp($url, $baseUrl, strlen($baseUrl))) {
-				return $basePath . substr($url, strlen($baseUrl));
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Calculate the relative url
-	 * @param string $from source url, begin with slash and not end width slash.
-	 * @param string $to dest url
-	 * @return string result relative url
-	 */
-	private function getRelativeUrl($from, $to)
-	{
-		$relative = '';
-		while (true) {
-			if ($from === $to) {
-				return $relative;
-			} elseif ($from === dirname($from)) {
-				return $relative . substr($to, 1);
-			} elseif (!strncmp($from . '/', $to, strlen($from) + 1)) {
-				return $relative . substr($to, strlen($from) + 1);
-			}
-			$from = dirname($from);
-			$relative .= '../';
-		}
-	}
-
-	/**
-	 * Get unique filename for combined files
-	 * @param string $name default filename
-	 * @param array $files files to be combined
-	 * @param string $type css media or script position
-	 * @return string unique filename
-	 */
-	private function getCombinedFileName($name, $files, $type = '')
-	{
-		$raw = '';
-		foreach ($files as $file) {
-			$raw .= "\0" . $file . "\0" . @filemtime($file);
-		}
-		$ext = ($type === '' ? '' : '-' . $type) . '-' . substr(base64_encode(md5($raw, true)), 0, -2);
-		$pos = strrpos($name, '.');
-		$name = $pos === false ? $name . $ext : substr_replace($name, $ext, $pos, 0);
-		return strtr($name, '+=/ ', '--__');
+		$this->scriptFiles[$position] = array_combine($scriptName, $scriptValue);
 	}
 
 	/**
 	 * Optmize css, strip any spaces and newline
+	 * 
 	 * @param string $data input css data
 	 * @return string optmized css data
 	 */
@@ -718,33 +748,19 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Change default of script position to CClinetScript::POS_END
+	 * В метод CClientScript::renderCoreScripts добавлена поддержка 
+	 * аттрибута media для css.
+	 * 
+	 * Теперь в описании package наравне с прежним синтаксисом можно исспользовать
+	 * такую форму записи:
+	 * 		'css' => array(
+	 * 			'style1.css',
+	 * 			'style2.css',
+	 * 			array('print.css', 'media' => 'print'),
+	 * 		),
+	 * 
+	 * @see  https://github.com/yiisoft/yii/issues/942
 	 */
-	public function registerScriptFile($url, $position = self::POS_END, array $htmlOptions = array())
-	{
-		if (substr($url, 0, 1) !== '/' && strpos($url, '://') === false) {
-			$url = $this->_baseUrl . '/' . $url;
-		}
-		return parent::registerScriptFile($url, $position, $htmlOptions);
-	}
-
-	public function registerCssFile($url, $media = '')
-	{
-		if (substr($url, 0, 1) !== '/' && strpos($url, '://') === false) {
-			$url = $this->_baseUrl . '/' . $url;
-		}
-		parent::registerCssFile($url, $media);
-	}
-
-	public function render(&$output)
-	{
-		parent::render($output);
-		// conditional js/css for IE
-		if ($this->hasScripts) {
-			$output = preg_replace('#(<(?:link|script) .+?) media="((?:[lg]te? )?IE \d+)"(.*?>(?:</script>)?)#', '<!--[if \2]>\1\3<![endif]-->', $output);
-		}
-	}
-
 	public function renderCoreScripts()
 	{
 		if($this->coreScripts===null)
@@ -763,7 +779,6 @@ class EClientScript extends CClientScript
 			{
 				foreach($package['css'] as $css) {
 					// add support for media types for css in packages
-					// see https://github.com/yiisoft/yii/issues/942
 					if (is_array($css)) {
 						$file = array_shift($css);
 						$cssFiles[$baseUrl.'/'.$file]=isset($css['media']) ? $css['media'] : '';
@@ -794,6 +809,7 @@ class EClientScript extends CClientScript
 
 	/**
 	 * Combine css files and script files before renderHead.
+	 * 
 	 * @param string the output to be inserted with scripts.
 	 */
 	public function renderHead(&$output)
@@ -821,6 +837,7 @@ class EClientScript extends CClientScript
 
 	/**
 	 * Inserts the scripts at the beginning of the body section.
+	 * 
 	 * @param string the output to be inserted with scripts.
 	 */
 	public function renderBodyBegin(&$output)
@@ -845,6 +862,7 @@ class EClientScript extends CClientScript
 
 	/**
 	 * Inserts the scripts at the end of the body section.
+	 * 
 	 * @param string the output to be inserted with scripts.
 	 */
 	public function renderBodyEnd(&$output)
