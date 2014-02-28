@@ -68,6 +68,13 @@ class EClientScript extends CClientScript
 	public $saveGzippedCopy = true;
 
 	/**
+	 * Путь к исполняемому файлу gzip.
+	 * 
+	 * @var string
+	 */
+	public $gzipExec = '/usr/bin/gzip';
+
+	/**
 	 * Путь к исполняемому файлу Zopfli.
 	 * Zopfli может быть использован в качестве более эффективной замены Gzip.
 	 * Если путь некорректен или равен false, Zopfli не будет использован.
@@ -785,7 +792,7 @@ class EClientScript extends CClientScript
 	{
 		if (empty($this->cssFiles) || count($this->cssFiles) < 2) return;
 
-		$this->startCounters('optimizing optimizing-css');
+		$this->startCounters('lazyload lazyload-css');
 
 		$cssFiles = array();
 		foreach ($this->cssFiles as $url => $media) {
@@ -804,7 +811,7 @@ class EClientScript extends CClientScript
 
 		$this->registerLazyLoad(self::POS_HEAD);
 
-		$this->stopCounters('optimizing optimizing-css');
+		$this->stopCounters('lazyload lazyload-css');
 	}
 
 	/**
@@ -816,7 +823,7 @@ class EClientScript extends CClientScript
 	{
 		if (!isset($this->scriptFiles[$position]) || count($this->scriptFiles[$position]) < 2) return;
 
-		$this->startCounters('optimizing optimizing-js');
+		$this->startCounters('lazyload lazyload-js');
 
 		$scriptFiles = array();
 		foreach($this->scriptFiles[$position] as $url => $attributes) {
@@ -835,7 +842,7 @@ class EClientScript extends CClientScript
 
 		$this->registerLazyLoad($position);
 
-		$this->stopCounters('optimizing optimizing-js');
+		$this->stopCounters('lazyload lazyload-js');
 	}
 
 	/**
@@ -846,6 +853,8 @@ class EClientScript extends CClientScript
 	 */
 	protected function gzipFile($file)
 	{
+		if (!$this->zopfliExec && !$this->gzipExec) return;
+
 		$gzippedFile = $file.'.gz';
 
 		if ($this->zopfliExec) {
@@ -854,7 +863,7 @@ class EClientScript extends CClientScript
 		}
 		else {
 			$tool = 'Gzip';
-			$cmd = 'gzip --best --stdout #FROM_FILE# > #TO_FILE#';
+			$cmd = $this->gzipExec.' --best --stdout #FROM_FILE# > #TO_FILE#';
 		}
 		
 		$this->optimizeFile($tool, $cmd, $file, $gzippedFile);
@@ -935,16 +944,25 @@ class EClientScript extends CClientScript
 			$this->cleancssExec = false;
 		}
 
+		if ($this->gzipExec && !file_exists($this->gzipExec)) {
+			Yii::trace('No Gzip executable found, disabling Gzip compression');
+		}
+
 		if ($this->zopfliExec && !file_exists($this->zopfliExec)) {
 			Yii::trace('No Zopfli executable found, disabling Zopfli compression');
 			$this->zopfliExec = false;
+		}
+
+		if (!$this->gzipExec && !$this->zopfliExec && $this->saveGzippedCopy) {
+			Yii::trace('No Gzip or Zopfli executables found, disabling gzip precomression');
+			$this->saveGzippedCopy = false;
 		}
 
 		$features = array_keys(array_filter(array(
 			'coffeescript'		 => $this->coffeeScriptExec,
 			'uglifyjs'			 => $this->uglifyjsExec && $this->optimizeScriptFiles,
 			'cleancss'			 => $this->cleancssExec && $this->optimizeCssFiles,
-			'gzip precompress'	 => $this->saveGzippedCopy && !$this->zopfliExec,
+			'gzip precompress'	 => $this->saveGzippedCopy && $this->gzipExec && !$this->zopfliExec,
 			'zopfli precompress' => $this->saveGzippedCopy && $this->zopfliExec,
 			'combining js'		 => $this->combineScriptFiles,
 			'combining css'		 => $this->combineCssFiles,
