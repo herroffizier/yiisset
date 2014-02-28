@@ -148,7 +148,18 @@ class EClientScript extends CClientScript
 	 */
 	protected $lazyLoadRegistered = false;
 
+	/**
+	 * Счётчики времени для различных действий.
+	 * 
+	 * @var array
+	 */
 	protected $counters = array();
+
+	/**
+	 * Время последнего запуска для каждого действия.
+	 * 
+	 * @var array
+	 */
 	protected $lastStartedTime = array();
 
 	/**
@@ -293,6 +304,13 @@ class EClientScript extends CClientScript
 		return $cMtime >= $fMtime;
 	}
 
+	/**
+	 * Начать отсчёт времени по указанным в $names событиям.
+	 * Если событий несколько, их названия должны быть разделены
+	 * пробелами.
+	 * 
+	 * @param  string $names
+	 */
 	protected function startCounters($names)
 	{
 		$names = explode(' ', $names);
@@ -302,6 +320,13 @@ class EClientScript extends CClientScript
 		}
 	}
 
+	/**
+	 * Закончить отсчёт времени по указанным в $names событий.
+	 * Если событий несколько, их названия должны быть разделены
+	 * пробелами.
+	 * 
+	 * @param  string $names
+	 */
 	protected function stopCounters($names)
 	{
 		$names = explode(' ', $names);
@@ -386,6 +411,12 @@ class EClientScript extends CClientScript
 		touch($touchFile);
 	}
 
+	/**
+	 * Скомпилировать CoffeeScript.
+	 * В случае успешной компиляции исходный файл будет удалён.
+	 * 
+	 * @param  string $file
+	 */
 	protected function compileCoffeeScriptFile($file)
 	{
 		$cmd = 
@@ -671,7 +702,7 @@ class EClientScript extends CClientScript
 	}
 
 	/**
-	 * Сжать JS при помощи Uglify.js
+	 * Сжать скрипт при помощи Uglify.js.
 	 * 
 	 * @param  string $file
 	 */
@@ -683,28 +714,11 @@ class EClientScript extends CClientScript
 		$this->optimizeFile('Uglify.js', $cmd, $file);
 	}
 
-	protected function cleancssFile($file)
-	{
-		if (!$this->cleancssExec) return;
-
-		$cmd = $this->nodeExec.' '.escapeshellarg($this->cleancssExec).' --skip-import --skip-rebase --compatibility ie7 -o #TO_FILE# #FROM_FILE#';
-		$this->optimizeFile('clean-css', $cmd, $file);
-	}
-
-	protected function cleancssFiles()
-	{
-		if (empty($this->cssFiles)) return;
-
-		$this->startCounters('optimizing optimizing-css');
-
-		foreach ($this->cssFiles as $url => $media) {
-			if (!($path = $this->getLocalPath($url))) continue;
-			$this->cleancssFile($path);
-		}
-
-		$this->stopCounters('optimizing optimizing-css');
-	}
-
+	/**
+	 * Сжать все скрипты в указанной позиции.
+	 * 
+	 * @param  string $position
+	 */
 	public function uglifyScriptFiles($position)
 	{
 		if (empty($this->scriptFiles[$position])) return;
@@ -717,6 +731,36 @@ class EClientScript extends CClientScript
 		}
 
 		$this->stopCounters('optimizing optimizing-js');
+	}
+
+	/**
+	 * Сжать файл стилей при помощи clean-css.
+	 * 
+	 * @param  string $file
+	 */
+	protected function cleancssFile($file)
+	{
+		if (!$this->cleancssExec) return;
+
+		$cmd = $this->nodeExec.' '.escapeshellarg($this->cleancssExec).' --skip-import --skip-rebase --compatibility ie7 -o #TO_FILE# #FROM_FILE#';
+		$this->optimizeFile('clean-css', $cmd, $file);
+	}
+
+	/**
+	 * Сжать все стили при помощи clean-css.
+	 */
+	protected function cleancssFiles()
+	{
+		if (empty($this->cssFiles)) return;
+
+		$this->startCounters('optimizing optimizing-css');
+
+		foreach ($this->cssFiles as $url => $media) {
+			if (!($path = $this->getLocalPath($url))) continue;
+			$this->cleancssFile($path);
+		}
+
+		$this->stopCounters('optimizing optimizing-css');
 	}
 
 	/**
@@ -734,6 +778,9 @@ class EClientScript extends CClientScript
 
 	}
 
+	/**
+	 * Загружать все стили при помощи LazyLoad.
+	 */
 	protected function lazyLoadCssFiles()
 	{
 		if (empty($this->cssFiles) || count($this->cssFiles) < 2) return;
@@ -813,7 +860,12 @@ class EClientScript extends CClientScript
 		$this->optimizeFile($tool, $cmd, $file, $gzippedFile);
 	}
 
-	protected function createGzippedCopies($files)
+	/**
+	 * Создать сжатые gzip'ом копии перечисленных файлов.
+	 *  
+	 * @param  array $files
+	 */
+	protected function createGzippedCopies(array $files)
 	{
 		foreach ($files as $url => $attributes) {
 			if (!($path = $this->getLocalPath($url))) continue;
@@ -821,6 +873,9 @@ class EClientScript extends CClientScript
 		}
 	}
 
+	/**
+	 * Создать сжатые копии всех стилей.
+	 */
 	protected function createGzippedCssFiles()
 	{
 		if (empty($this->cssFiles)) return;
@@ -830,6 +885,11 @@ class EClientScript extends CClientScript
 		$this->stopCounters('compressing compressing-css');
 	}
 
+	/**
+	 * Создать сжатые копии всех скриптов в указанной позиции.
+	 * 
+	 * @param  int $position
+	 */
 	protected function createGzippedScriptFiles($position)
 	{
 		if (empty($this->scriptFiles[$position])) return;
@@ -839,6 +899,12 @@ class EClientScript extends CClientScript
 		$this->stopCounters('compressing compressing-js');
 	}
 
+	/**
+	 * Код метода CClientScript::render() дополнен подсчётом статистики
+	 * и выводом отладочной информации в лог.
+	 * 
+	 * @param  string $output
+	 */
 	public function render(&$output)
 	{
 		$this->startCounters('total');
@@ -979,9 +1045,11 @@ class EClientScript extends CClientScript
 		}
 
 		if ($this->optimizeCssFiles) {
-			$this->cleanCssFiles();
+			$this->cleancssFiles();
 		}
 
+		// создание сжатых копий стилей должно идти перед вызовом
+		// lazyLoadCssFiles
 		if ($this->saveGzippedCopy) {
 			$this->createGzippedCssFiles();
 		}

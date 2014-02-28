@@ -1,6 +1,8 @@
 <?php
 /**
- * Extended asset manager for {@link EClientScript}.
+ * Yiisset Asset Manager
+ *
+ * Замена стаднартоного компонента assetManager.
  * 
  * @author  Martin Stolz <herr.offizier@gmail.com>
  * @package ext.yiisset
@@ -19,7 +21,7 @@ class EAssetManager extends CAssetManager
 	public $assetVersion = null;
 
     /**
-     * Add asset version to path hash
+     * К рассчитанному 
      * 
      * @param  string $path
      * @return string
