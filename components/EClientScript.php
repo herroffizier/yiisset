@@ -1,76 +1,76 @@
 <?php
 /**
- * Extended client script class with a lot of useful (and useless)
- * additional stuff.
+ * Yiisset Client Script
+ *
+ * Замена стаднартоного компонента clientScript с рядом улучшений и новых фич.
  * 
  * @author  Martin Stolz <herr.offizier@gmail.com>
  * @package ext.yiisset
  */
 
 /**
- * Extended client script.
- * Better to use in conjunction with {@link EAssetManager}
+ * Расщиренный CClientScript.
+ * Лучше использовать совместно с входящим в расширение {@link EAssetManager}.
  */
 class EClientScript extends CClientScript
 {
 
 	/**
-	 * Whether css combination is enabled.
+	 * Следует ли объединять стили в один файл.
 	 * 
 	 * @var boolean
 	 */
 	public $combineCssFiles = true;
 
 	/**
-	 * Whether css optimization is enabled.
+	 * Следует ли оптимизировать css-файлы.
 	 * 
 	 * @var boolean
 	 */
 	public $optimizeCssFiles = true;
 
 	/**
-	 * Combined css file name.
+	 * Имя объединённого файла стилей.
 	 * 
 	 * @var string
 	 */
 	public $cssFileName = 'style.css';
 
 	/**
-	 * Whether script combination is enabled.
+	 * Следует ли объединять скрипты в один файл.
 	 * 
 	 * @var boolean
 	 */
 	public $combineScriptFiles = true;
 
 	/**
-	 * Whether script optimization is enabled.
+	 * Следует ли отпимизировать скрипты.
 	 * 
 	 * @var boolean
 	 */
 	public $optimizeScriptFiles = true;
 
 	/**
-	 * Combined script file name.
+	 * Имя объединённого файла скриптов.
 	 * 
 	 * @var string
 	 */
 	public $scriptFileName = 'script.js';
 
 	/**
-	 * Whether gzipped version of combined files generating is enabled.
-	 * Useful for nginx's gzip_static, works only with {@link combineScriptFiles} = true 
-	 * or {@link combineCssFiles} = true).
+	 * Следует ли создавать gzipped версии файлов.
+	 * Фича может быть полезна для некоторых серверов (например, для nginx).
+	 * Если нет более эффективных вариантов, для сжатия используется gzip.
 	 * 
+	 * @see http://nginx.org/ru/docs/http/ngx_http_gzip_static_module.html
 	 * @var boolean
 	 */
 	public $saveGzippedCopy = true;
 
 	/**
-	 * Path to zopfli binary.
-	 * Zopfli may be used as more effective alternative for Gzip when {@link saveGzippedCopy} = true.
-	 * If points to nonexistent file, Zopfli precompression will be silently
-	 * disabled.
-	 * Set to false to disable Zopfli manually.
+	 * Путь к исполняемому файлу Zopfli.
+	 * Zopfli может быть использован в качестве более эффективной замены Gzip.
+	 * Если путь некорректен или равен false, Zopfli не будет использован.
 	 *
 	 * @see https://code.google.com/p/zopfli/
 	 * @var mixed 
@@ -78,65 +78,78 @@ class EClientScript extends CClientScript
 	public $zopfliExec = '/usr/bin/zopfli';
 
 	/**
-	 * Path to node.js executable.
-	 * Required for CoffeeScript compiler and uglify.js.
-	 * If points to nonexistent file, dependent features will be silenlty
-	 * disabled.
-	 * Set to false to disable all dependent features manually.
+	 * Путь к исполняемому файлу node.js.
+	 * Node.js используется для ряда фич - например, для компиляции CoffeeScript.
+	 * Если путь некорректен или равен false, фичи, которым он нужен, не будут
+	 * использоваться.
 	 * 
 	 * @var mixed
 	 */
 	public $nodeExec = '/usr/local/bin/node';
 
 	/**
-	 * Path to CoffeeScript compiler.
-	 * If set to correct path, compiles all *.coffee files to JS.
-	 * Pay attention, each file will be compiled separately.
-	 * Set to false to disable CoffeeScript compiling.
+	 * Путь к компилятору CoffeeScript.
+	 * Если путь корректен, все подключённые файлы с расширением .coffee будут
+	 * скомпилированы в javascript.
+	 * Стоит обратить внимание, что на данный момент файлы обрабатываются по одному.
 	 * 
-	 * Requires {@link nodeExec} to be set.
+	 * Требует корректного значения {@link nodeExec}.
 	 * 
 	 * @var mixed
 	 */
 	public $coffeeScriptExec = '/usr/local/bin/coffee';
 
 	/**
-	 * Path to uglify.js.
-	 * Set to false to disable uglifying scripts.
+	 * Путь к минификатору uglify.js.
 	 * 
-	 * Requires {@link nodeExec} to be set to correct path 
-	 * and {@link optimizeScriptFiles} set to true.
+	 * Требует корректного значения {@link nodeExec} 
+	 * и {@link optimizeScriptFiles} = true.
 	 * 
 	 * @var mixed
 	 */
 	public $uglifyjsExec = '/usr/local/bin/uglifyjs';
 
 	/**
-	 * Whether to put inline scripts (registered with {@link registerScript})
-	 * into file.
-	 * Quite useless. :)
+	 * Путь к минификатору clean-css.
+	 *
+	 * Требует корректного значения {@link nodeExec}
+	 * и {@link optimizeCssFiles} = true.
+	 * 
+	 * @var string
+	 */
+	public $cleancssExec = '/usr/local/bin/cleancss';
+
+	/**
+	 * Следует ли помещать все инлайновые скрипты в отдельный файл.
+	 * Довольно бесполезная фича, которая может пригодиться лишь отъявленным
+	 * борцам за чистоту кода страницы.
+	 * Если равна true, инлайновые скрипты будут раскиданы по нескольким файлам,
+	 * соответствующим позициям на странице.
 	 * 
 	 * @var boolean
 	 */
 	public $disableInlineScripts = true;
 
 	/**
-	 * Whether to use LazyLoad script to enable parallel resource downloading.
-	 * This feature may be useful when using slow CDNs like Facebook's one.
-	 * Extension is bundled with modified version of LazyLoad.
+	 * Следует ли использовать LazyLoad для подключения ресурсов на странице.
+	 * LazyLoad позволяет существенно сократить время загрузки страницы за счёт
+	 * параллельной загрузки различных ресурсов, что может быть крайне востребованным
+	 * при работе с медленными CDN (привет, Facebook).
 	 *
 	 * @see https://github.com/herroffizier/lazyload
-	 * 
 	 * @var boolean
 	 */
 	public $useLazyLoad = true;
 
 	/**
-	 * Whether LazyLoaded registered.
+	 * Был ли подключен скрипт LazyLoad.
 	 * 
 	 * @var boolean
 	 */
 	protected $lazyLoadRegistered = false;
+
+	protected $counters = array();
+	protected $lastStartedTime = array();
 
 	/**
 	 * @var array local base path & url
@@ -163,46 +176,6 @@ class EClientScript extends CClientScript
 			$this->_baseUrlMap[$baseUrl] = Yii::app()->theme->basePath . DIRECTORY_SEPARATOR;
 		}
 
-		// check paths to executables and build features list
-		$features = array();
-
-		if (!$this->nodeExec || !file_exists($this->nodeExec)) {
-			Yii::trace('No node.js executable found, disabling CoffeeScript and UglifyJS');
-			$this->nodeExec = false;
-			$this->coffeeScriptExec = false;
-			$this->uglifyjsExec = false;
-		}
-
-		if ($this->coffeeScriptExec && !file_exists($this->coffeeScriptExec)) {
-			Yii::trace('No CoffeeScript executable found, disabling CoffeeScript compilation');
-			$this->coffeeScriptExec = false;
-		}
-
-		if ($this->uglifyjsExec && !file_exists($this->uglifyjsExec)) {
-			Yii::trace('No UglifyJS executable found, disabling UglifyJS optimization');
-			$this->uglifyjsExec = false;
-		}
-
-		if ($this->zopfliExec && !file_exists($this->zopfliExec)) {
-			Yii::trace('No Zopfli executable found, disabling Zopfli compression');
-			$this->zopfliExec = false;
-		}
-
-		$features = array_keys(array_filter(array(
-			'coffeescript'		 => $this->coffeeScriptExec,
-			'uglifyjs'			 => $this->uglifyjsExec && $this->optimizeScriptFiles && $this->combineScriptFiles,
-			'gzip precompress'	 => $this->saveGzippedCopy && ($this->combineCssFiles || $this->combineScriptFiles) && !$this->zopfliExec,
-			'zopfli precompress' => $this->saveGzippedCopy && ($this->combineCssFiles || $this->combineScriptFiles) && $this->zopfliExec,
-			'combining js'		 => $this->combineScriptFiles,
-			'combining css'		 => $this->combineCssFiles,
-			'saving inline js'	 => $this->disableInlineScripts,
-			'lazyload'			 => $this->useLazyLoad,
-		)));
-		
-		if ($features) {
-			Yii::trace('yiisset is running with '.implode(', ', $features));
-		}
-
 		parent::init();
 	}
 
@@ -213,12 +186,16 @@ class EClientScript extends CClientScript
 	 * @param  string $path 
 	 * @return string
 	 */
-	protected function getAssetVersion($path)
+	protected function getAssetVersion($path = null)
 	{
+		$mtime = null;
+		if ($path && file_exists($path)) {
+			$mtime = filemtime($path);
+		}
 		return 
 			(Yii::app()->assetManager instanceof EAssetManager && Yii::app()->assetManager->assetVersion)
 				? Yii::app()->assetManager->assetVersion
-				: (file_exists($path) ? filemtime($path) : time());
+				: $mtime;
 	}
 
 	/**
@@ -247,7 +224,7 @@ class EClientScript extends CClientScript
 		foreach ($files as $file) {
 			$raw .= "\0".$file.(file_exists($file) ? filemtime($file)."\0" : '');
 		}
-		$ext = ($type === '' ? '' : '-' . $type) . '-' . $this->hash($raw);
+		$ext = ($type === '' ? '' : '-'.$type).'-'.$this->hash($raw).'-'.$this->getAssetVersion();
 		$pos = strrpos($name, '.');
 		$name = $pos === false ? $name . $ext : substr_replace($name, $ext, $pos, 0);
 		return strtr($name, '+=/ ', '--__');
@@ -300,8 +277,42 @@ class EClientScript extends CClientScript
 	 */
 	protected function isNewer($file, $copy)
 	{
-		if (!file_exists($copy)) return false;
-		return filemtime($copy) > filemtime($file);
+		if (!file_exists($copy)) {
+			Yii::trace(basename($file).' has no copy ('.basename($copy).').');
+			return false;
+		}
+
+		$cMtime = filemtime($copy);
+		$fMtime = filemtime($file);
+		if ($cMtime >= $fMtime) {
+			Yii::trace(basename($file).' copy ('.basename($copy).') is newer.');
+		}
+		else {
+			Yii::trace(basename($file).' copy ('.basename($copy).') is out of date.');
+		}
+		return $cMtime >= $fMtime;
+	}
+
+	protected function startCounters($names)
+	{
+		$names = explode(' ', $names);
+		$time = microtime(true);
+		foreach ($names as $name) {
+			$this->lastStartedTime[$name] = $time;
+		}
+	}
+
+	protected function stopCounters($names)
+	{
+		$names = explode(' ', $names);
+		$time = microtime(true);
+		foreach ($names as $name) {
+			$duration = microtime(true) - $this->lastStartedTime[$name];
+			if (!isset($this->counters[$name])) {
+				$this->counters[$name] = 0;
+			}
+			$this->counters[$name] += $duration;
+		}
 	}
 
 	/**
@@ -313,7 +324,7 @@ class EClientScript extends CClientScript
 	 * 
 	 * Для того, чтобы по нескольку раз один и тот же файл, создаётся $touchFile,
 	 * чья дата изменения дожна быть новее, чем у $fromFile.
-	 * Если указан $toFile, то в качесве $touchFile используется он.
+	 * Если указан $toFile, то в качестве $touchFile используется он.
 	 *
 	 * @throws CException если после выполнения команды результирующий файл не был создан
 	 *
@@ -323,14 +334,11 @@ class EClientScript extends CClientScript
 	 * @param  string[optional]  	$toFile 		результирующий файл
 	 * @param  boolean[optional] 	$removeSource 	удалять ли исходный файл в случае успеха
 	 */
-	protected function optimizeFile($tool, $command, $fromFile, $toFile = null, $removeSource = true) 
+	protected function optimizeFile($tool, $command, $fromFile, $toFile = null, $removeSource = false) 
 	{
-		$touchFile = $toFile ?: $fromFile.'.processed.'.preg_replace('/\s+/', '', $tool);
+		$touchFile = $toFile ?: $fromFile.'.processed.'.preg_replace('/[\s\.]+/', '_', $tool);
 
-		if ($this->isNewer($fromFile, $touchFile)) {
-			Yii::trace($touchFile.' is already processed with '.$tool.'.');
-			return;
-		}
+		if ($this->isNewer($fromFile, $touchFile)) return;
 
 		if (!$toFile) {
 			$useTempFile = true;
@@ -358,11 +366,12 @@ class EClientScript extends CClientScript
 
 		if (file_exists($toFile)) {
 			Yii::trace(
-				$tool.' saves '.number_format(filesize($fromFile) - filesize($toFile))." bytes\nfor "
+				$tool.' saves '.number_format(filesize($fromFile) - filesize($toFile))." bytes for "
 				.pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).'.'
 			);
 
-			if ($useTempFile || $removeSource) {
+			if ($useTempFile || (!$useTempFile && $removeSource)) {
+				Yii::trace('Removing '.$fromFile.' after successful optimization.');
 				unlink($fromFile);
 			}
 		}
@@ -377,204 +386,50 @@ class EClientScript extends CClientScript
 		touch($touchFile);
 	}
 
+	protected function compileCoffeeScriptFile($file)
+	{
+		$cmd = 
+			$this->nodeExec.' '.escapeshellarg($this->coffeeScriptExec)
+			.' -o '.escapeshellarg(dirname($file).'/')
+			.' -c #FROM_FILE#';
+
+		$compiledScriptFile = mb_substr($file, 0, mb_strlen($file) - 6).'js';
+
+		$this->optimizeFile('CoffeeScript', $cmd, $file, $compiledScriptFile, true);
+	}
+
 	/**
 	 * Скомпилировать каждый .coffee файл в указанной позиции в JS.
 	 * 
 	 * @param  int $position
 	 */
-	protected function compileCoffeeScript($position)
+	protected function compileCoffeeScriptFiles($position)
 	{
 		if (!$this->coffeeScriptExec || empty($this->scriptFiles[$position])) return;
 		
 		$scriptFiles = array();
 		
-		foreach ($this->scriptFiles[$position] as $index => $script) {
+		foreach ($this->scriptFiles[$position] as $url => $attributes) {
 			if (
-				!preg_match('/\.coffee$/', $script) 
-				|| !($scriptFile = $this->getLocalPath($script))
+				!preg_match('/\.coffee$/', $url) 
+				|| !($path = $this->getLocalPath($url))
 			) {
-				$scriptFiles[$index] = $script;
+				$scriptFiles[$url] = $attributes;
 				continue;
 			}
 
-			$compiledScript = mb_substr($script, 0, mb_strlen($script) - 6).'js';
-			$compiledScriptFile = mb_substr($scriptFile, 0, mb_strlen($scriptFile) - 6).'js';
+			$this->startCounters('coffee');
 
-			$scriptFiles[$compiledScript] = $compiledScript;
+			$compiledScript = mb_substr($url, 0, mb_strlen($url) - 6).'js';
+			$compiledScriptFile = mb_substr($path, 0, mb_strlen($path) - 6).'js';
 
-			if ($this->isNewer($scriptFile, $compiledScriptFile)) {
-				Yii::trace($scriptFile.' is already compiled to '.$compiledScriptFile);
-				continue;
-			}
+			$this->compileCoffeeScriptFile($path);
+			$scriptFiles[$compiledScript] = $attributes;
 
-			$cmd = 
-				escapeshellcmd(
-					$this->nodeExec.' '.escapeshellarg($this->coffeeScriptExec)
-					.' -o '.escapeshellarg(dirname($scriptFile).'/')
-					.' -c '.escapeshellarg($scriptFile)
-					
-				).' 2>&1';
-			
-			$output = shell_exec($cmd);
-			if ($output) {
-				throw new Exception('Coffee compiler ('.$cmd.') output: '.$output);
-			}
-			else {
-				Yii::trace('Coffee compiler ('.$cmd.') completed successfully.');
-			}
+			$this->stopCounters('coffee');
 		}
 
 		$this->scriptFiles[$position] = $scriptFiles;
-	}
-
-	/**
-	 * Сжать JS при помощи Uglify.js
-	 * 
-	 * @param  string $file
-	 */
-	protected function uglifyScriptFile($file)
-	{
-		if (!$this->uglifyjsExec || !$this->optimizeScriptFiles) return;
-
-		$cmd = $this->nodeExec.' '.escapeshellarg($this->uglifyjsExec).' #FROM_FILE# -o #TO_FILE#';
-		$this->optimizeFile('Uglify.js', $cmd, $file);
-	}
-
-	/**
-	 * Создать gzipped копию файла.
-	 * Если возможно, используется Zopfli, в противном случае - gzip.
-	 * 
-	 * @param  string $file
-	 */
-	protected function createGzippedCopy($file)
-	{
-		if (!$this->saveGzippedCopy) return;
-
-		$gzippedFile = $file.'.gz';
-
-		if (false && $this->zopfliExec) {
-			$tool = 'Zopfli';
-			$cmd = $this->zopfliExec.' #FROM_FILE#';
-		}
-		else {
-			$tool = 'Gzip';
-			$cmd = 'gzip --best -c #FROM_FILE# > #TO_FILE#';
-		}
-		
-		$this->optimizeFile($tool, $cmd, $file, $gzippedFile);
-	}
-
-	/**
-	 * Зарегистрирвовать скрипт LazyLoad в указанной позиции.
-	 * 
-	 * @param  int $position
-	 */
-	protected function registerLazyLoad($position)
-	{
-		if ($this->lazyLoadRegistered) return;
-		$this->lazyLoadRegistered = true;
-
-		$basePath = Yii::app()->assetManager->publish(__DIR__.'/../assets');
-		$this->registerScriptFile($basePath.'/'.(YII_DEBUG ? 'lazyload.js' : 'lazyload.min.js'), $position);
-
-	}
-
-	/**
-	 * Загружать все файлы в указанной позиции через LazyLoad.
-	 * 
-	 * @param  int $position
-	 */
-	protected function lazyLoad($position)
-	{
-		if (!isset($this->scriptFiles[$position]) || count($this->scriptFiles[$position]) < 2) return;
-
-		$scriptFiles = array_keys($this->scriptFiles[$position]);
-		$code = 'LazyLoad.js('.CJSON::encode($scriptFiles).');';
-		$this->registerScript('lazyLoad_'.$position, $code, $position);
-
-		$this->scriptFiles[$position] = array();
-
-		$this->registerLazyLoad($position);
-	}
-
-	/**
-	 * Получить строку со всеми инлайновыми скриптами в указанной позиции.
-	 * Скрипты для позиций POS_READY and POS_LOAD will будут обёрнуты в функции
-	 * $(function() { ... }) и $(window).on('load', function() { ... }) соответственно.
-	 * 
-	 * @param  int $position
-	 * @return string
-	 */
-	protected function getInlineCode($position)
-	{
-		if (empty($this->scripts[$position])) return '';
-
-		$code = implode("\n", $this->scripts[$position]);
-		switch ($position) {
-			case self::POS_READY:
-				$code = 'jQuery(function($){'.$code.'});';
-				break;
-
-			case self::POS_LOAD:
-				$code = 'jQuery(window).on(\'load\',function(){'.$code.'});';
-				break;
-		}
-
-		return $code;
-	}
-
-	/**
-	 * Сохранить инлайновые скрипты в указанной позиции в общий файл.
-	 * Довольно бесполезная фича, единственная цель которой - избавить тело страницы
-	 * от инлайновых скриптов.
-	 * 
-	 * @param  int $position
-	 */
-	protected function saveInlineCodeToFile($position = self::POS_HEAD)
-	{
-		$isEndPos = $position === self::POS_END;
-		if (
-			empty($this->scripts[$position])
-			&& (
-				!$isEndPos
-				|| (empty($this->scripts[self::POS_READY]) && empty($this->scripts[self::POS_LOAD])) 
-			)
-		) {
-			return;
-		}
-
-		$code = $this->getInlineCode($position);
-
-		if ($isEndPos) {
-			$code = array_filter(array(
-				$code, 
-				$this->getInlineCode(self::POS_READY), 
-				$this->getInlineCode(self::POS_LOAD),
-			)); 
-			$code = implode("\n", $code);
-		}
-
-		$fileName = 'inline-' . $this->hash($code) . '.js';
-		$inlineFile = Yii::app()->assetManager->basePath . DIRECTORY_SEPARATOR . $fileName;
-		$inlineUrl = Yii::app()->assetManager->baseUrl . DIRECTORY_SEPARATOR . $fileName;
-
-		if ($result = file_exists($inlineFile)) {
-			Yii::trace('Inline script is already saved in '.$inlineFile);
-		}
-		else {
-			Yii::trace('Saving inline script into '.$inlineFile);
-			$result = file_put_contents($inlineFile, $code);
-		}
-
-		if ($result) {
-			$this->registerScriptFile($inlineUrl, $position);
-
-			unset($this->scripts[$position]);
-			if ($isEndPos) {
-				unset($this->scripts[self::POS_READY]);
-				unset($this->scripts[self::POS_LOAD]);
-			}
-		}
 	}
 
 	/**
@@ -584,9 +439,10 @@ class EClientScript extends CClientScript
 	protected function combineCssFiles()
 	{
 		// Check the need for combination
-		if (count($this->cssFiles) < 2) {
-			return;
-		}
+		if (count($this->cssFiles) < 2) return;
+		
+		$this->startCounters('combining combining-css');
+
 		$cssFiles = array();
 		foreach ($this->cssFiles as $url => $media) {
 			$file = $this->getLocalPath($url);
@@ -649,28 +505,106 @@ class EClientScript extends CClientScript
 							}
 
 							// Append the contents to the fileBuffer
-							$fileBuffer .= "/*** CSS File: {$url}";
-							if ($this->optimizeCssFiles && strpos($file, '.min.') === false && strpos($file, '.pack.') === false) {
-								$fileBuffer .= ", Original size: " . number_format(strlen($contents)) . ", Compressed size: ";
-								$contents = $this->optimizeCssCode($contents);
-								$fileBuffer .= number_format(strlen($contents));
-							}
-							$fileBuffer .= " ***/\n";
 							$fileBuffer .= $contents . "\n\n";
 						}
 					}
 					Yii::trace('Saving merged css into '.$fpath);
 					file_put_contents($fpath, $charsetLine . $fileBuffer);
-					$this->createGzippedCopy($fpath);
 				}
 				else {
 					Yii::trace('Merged css is already saved in '.$fpath);
 				}
 				// real url of combined file
-				$url = Yii::app()->assetManager->baseUrl . '/' . $fname . '?' . $this->getAssetVersion($fpath);
+				$url = Yii::app()->assetManager->baseUrl . '/' . $fname;
 			}
 			$this->cssFiles[$url] = $media;
 		}
+
+		$this->stopCounters('combining combining-css');
+	}
+
+	/**
+	 * Получить строку со всеми инлайновыми скриптами в указанной позиции.
+	 * Скрипты для позиций POS_READY and POS_LOAD will будут обёрнуты в функции
+	 * $(function() { ... }) и $(window).on('load', function() { ... }) соответственно.
+	 * 
+	 * @param  int $position
+	 * @return string
+	 */
+	protected function getInlineCode($position)
+	{
+		if (empty($this->scripts[$position])) return '';
+
+		$code = implode("\n", $this->scripts[$position]);
+		switch ($position) {
+			case self::POS_READY:
+				$code = 'jQuery(function($){'.$code.'});';
+				break;
+
+			case self::POS_LOAD:
+				$code = 'jQuery(window).on(\'load\',function(){'.$code.'});';
+				break;
+		}
+
+		return $code;
+	}
+
+	/**
+	 * Сохранить инлайновые скрипты в указанной позиции в общий файл.
+	 * Довольно бесполезная фича, единственная цель которой - избавить тело страницы
+	 * от инлайновых скриптов.
+	 * 
+	 * @param  int $position
+	 */
+	protected function saveInlineCodeToFile($position = self::POS_HEAD)
+	{
+		$isEndPos = $position === self::POS_END;
+		if (
+			empty($this->scripts[$position])
+			&& (
+				!$isEndPos
+				|| (empty($this->scripts[self::POS_READY]) && empty($this->scripts[self::POS_LOAD])) 
+			)
+		) {
+			return;
+		}
+
+		$this->startCounters('saving-inline');
+
+		$code = $this->getInlineCode($position);
+
+		if ($isEndPos) {
+			$code = array_filter(array(
+				$code, 
+				$this->getInlineCode(self::POS_READY), 
+				$this->getInlineCode(self::POS_LOAD),
+			)); 
+			$code = implode("\n", $code);
+		}
+
+		$fileName = 'inline-' . $this->hash($code) . '.js';
+		$inlineFile = Yii::app()->assetManager->basePath . DIRECTORY_SEPARATOR . $fileName;
+		$inlineUrl = Yii::app()->assetManager->baseUrl . DIRECTORY_SEPARATOR . $fileName;
+
+		if ($result = file_exists($inlineFile)) {
+			Yii::trace('Inline script is already saved in '.$inlineFile);
+		}
+		else {
+			Yii::trace('Saving inline script into '.$inlineFile);
+			$result = file_put_contents($inlineFile, $code);
+		}
+
+		if ($result) {
+			$this->registerScriptFile($inlineUrl, $position);
+
+			unset($this->scripts[$position]);
+			if ($isEndPos) {
+				unset($this->scripts[self::POS_READY]);
+				unset($this->scripts[self::POS_LOAD]);
+			}
+		}
+
+		$this->stopCounters('saving-inline');
 	}
 
 	/**
@@ -682,9 +616,10 @@ class EClientScript extends CClientScript
 	protected function combineScriptFiles($position = self::POS_HEAD)
 	{
 		// Check the need for combination
-		if (!isset($this->scriptFiles[$position]) || count($this->scriptFiles[$position]) < 2) {
-			return;
-		}
+		if (!isset($this->scriptFiles[$position]) || count($this->scriptFiles[$position]) < 2) return;
+	
+		$this->startCounters('combining combining-js');
+
 		$toCombine = array();
 		$indexCombine = 0;
 		$scriptName = $scriptValue = array();
@@ -720,31 +655,256 @@ class EClientScript extends CClientScript
 				}
 				Yii::trace('Saving merged script into '.$fpath);
 				file_put_contents($fpath, $fileBuffer);
-				$this->uglifyScriptFile($fpath);
-				$this->createGzippedCopy($fpath);
 			}
 			else {
 				Yii::trace('Merged script is already saved in '.$fpath);
 			}
 			// add the combined file into scriptFiles
-			$url = Yii::app()->assetManager->baseUrl . '/' . $fname . '?' . $this->getAssetVersion($fpath);
+			$url = Yii::app()->assetManager->baseUrl . '/' . $fname;
 			$scriptName[] = $url;
 			$scriptValue[] = $url;
 		}
 		// use new scriptFiles list replace old ones
 		$this->scriptFiles[$position] = array_combine($scriptName, $scriptValue);
+
+		$this->stopCounters('combining combining-js');
 	}
 
 	/**
-	 * Optmize css, strip any spaces and newline
+	 * Сжать JS при помощи Uglify.js
 	 * 
-	 * @param string $data input css data
-	 * @return string optmized css data
+	 * @param  string $file
 	 */
-	private function optimizeCssCode($code)
+	protected function uglifyFile($file)
 	{
-		require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'CssMin.php';
-		return CssMin::minify($code, array(), array('CompressUnitValues' => true));
+		if (!$this->uglifyjsExec) return;
+
+		$cmd = $this->nodeExec.' '.escapeshellarg($this->uglifyjsExec).' #FROM_FILE# -o #TO_FILE#';
+		$this->optimizeFile('Uglify.js', $cmd, $file);
+	}
+
+	protected function cleancssFile($file)
+	{
+		if (!$this->cleancssExec) return;
+
+		$cmd = $this->nodeExec.' '.escapeshellarg($this->cleancssExec).' --skip-import --skip-rebase --compatibility ie7 -o #TO_FILE# #FROM_FILE#';
+		$this->optimizeFile('clean-css', $cmd, $file);
+	}
+
+	protected function cleancssFiles()
+	{
+		if (empty($this->cssFiles)) return;
+
+		$this->startCounters('optimizing optimizing-css');
+
+		foreach ($this->cssFiles as $url => $media) {
+			if (!($path = $this->getLocalPath($url))) continue;
+			$this->cleancssFile($path);
+		}
+
+		$this->stopCounters('optimizing optimizing-css');
+	}
+
+	public function uglifyScriptFiles($position)
+	{
+		if (empty($this->scriptFiles[$position])) return;
+
+		$this->startCounters('optimizing optimizing-js');
+
+		foreach ($this->scriptFiles[$position] as $url => $attributes) {
+			if (!($path = $this->getLocalPath($url))) continue;
+			$this->uglifyFile($path);
+		}
+
+		$this->stopCounters('optimizing optimizing-js');
+	}
+
+	/**
+	 * Зарегистрирвовать скрипт LazyLoad в указанной позиции.
+	 * 
+	 * @param  int $position
+	 */
+	protected function registerLazyLoad($position)
+	{
+		if ($this->lazyLoadRegistered) return;
+		$this->lazyLoadRegistered = true;
+
+		$basePath = Yii::app()->assetManager->publish(__DIR__.'/../assets');
+		$this->registerScriptFile($basePath.'/'.(YII_DEBUG ? 'lazyload.js' : 'lazyload.min.js'), $position);
+
+	}
+
+	protected function lazyLoadCssFiles()
+	{
+		if (empty($this->cssFiles) || count($this->cssFiles) < 2) return;
+
+		$this->startCounters('optimizing optimizing-css');
+
+		$cssFiles = array();
+		foreach ($this->cssFiles as $url => $media) {
+			if ($media) {
+				$cssFiles[] = array('url' => $url, 'media' => $media);
+			}
+			else {
+				$cssFiles[] = $url;
+			}
+		}
+
+		$code = 'LazyLoad.css('.CJSON::encode($cssFiles).');';
+		$this->registerScript('lazy_load_css', $code, self::POS_HEAD);
+
+		$this->cssFiles = array();
+
+		$this->registerLazyLoad(self::POS_HEAD);
+
+		$this->stopCounters('optimizing optimizing-css');
+	}
+
+	/**
+	 * Загружать все скрипты в указанной позиции через LazyLoad.
+	 * 
+	 * @param  int $position
+	 */
+	protected function lazyLoadScriptFiles($position)
+	{
+		if (!isset($this->scriptFiles[$position]) || count($this->scriptFiles[$position]) < 2) return;
+
+		$this->startCounters('optimizing optimizing-js');
+
+		$scriptFiles = array();
+		foreach($this->scriptFiles[$position] as $url => $attributes) {
+			if (is_array($attributes)) {
+				$scriptFiles[] = array_merge($attributes, compact('url'));
+			}
+			else {
+				$scriptFiles[] = $url;
+			}
+		}
+
+		$code = 'LazyLoad.js('.CJSON::encode($scriptFiles).');';
+		$this->registerScript('lazyLoad_scripts_'.$position, $code, $position);
+
+		$this->scriptFiles[$position] = array();
+
+		$this->registerLazyLoad($position);
+
+		$this->stopCounters('optimizing optimizing-js');
+	}
+
+	/**
+	 * Создать gzipped копию файла.
+	 * Если возможно, используется Zopfli, в противном случае - gzip.
+	 * 
+	 * @param  string $file
+	 */
+	protected function gzipFile($file)
+	{
+		$gzippedFile = $file.'.gz';
+
+		if ($this->zopfliExec) {
+			$tool = 'Zopfli';
+			$cmd = $this->zopfliExec.' #FROM_FILE#';
+		}
+		else {
+			$tool = 'Gzip';
+			$cmd = 'gzip --best --stdout #FROM_FILE# > #TO_FILE#';
+		}
+		
+		$this->optimizeFile($tool, $cmd, $file, $gzippedFile);
+	}
+
+	protected function createGzippedCopies($files)
+	{
+		foreach ($files as $url => $attributes) {
+			if (!($path = $this->getLocalPath($url))) continue;
+			$this->gzipFile($path);
+		}
+	}
+
+	protected function createGzippedCssFiles()
+	{
+		if (empty($this->cssFiles)) return;
+
+		$this->startCounters('compressing compressing-css');
+		$this->createGzippedCopies($this->cssFiles);
+		$this->stopCounters('compressing compressing-css');
+	}
+
+	protected function createGzippedScriptFiles($position)
+	{
+		if (empty($this->scriptFiles[$position])) return;
+
+		$this->startCounters('compressing compressing-js');
+		$this->createGzippedCopies($this->scriptFiles[$position]);
+		$this->stopCounters('compressing compressing-js');
+	}
+
+	public function render(&$output)
+	{
+		$this->startCounters('total');
+
+		// check paths to executables and build features list
+		$features = array();
+
+		if (!$this->nodeExec || !file_exists($this->nodeExec)) {
+			Yii::trace('No node.js executable found, disabling CoffeeScript and UglifyJS');
+			$this->nodeExec = false;
+			$this->coffeeScriptExec = false;
+			$this->uglifyjsExec = false;
+			$this->cleancssExec = false;
+		}
+
+		if ($this->coffeeScriptExec && !file_exists($this->coffeeScriptExec)) {
+			Yii::trace('No CoffeeScript executable found, disabling CoffeeScript compilation');
+			$this->coffeeScriptExec = false;
+		}
+
+		if ($this->uglifyjsExec && !file_exists($this->uglifyjsExec)) {
+			Yii::trace('No UglifyJS executable found, disabling UglifyJS optimization');
+			$this->uglifyjsExec = false;
+		}
+
+		if ($this->cleancssExec && !file_exists($this->cleancssExec)) {
+			Yii::trace('No clean-css executable found, disabling clean-css optimization');
+			$this->cleancssExec = false;
+		}
+
+		if ($this->zopfliExec && !file_exists($this->zopfliExec)) {
+			Yii::trace('No Zopfli executable found, disabling Zopfli compression');
+			$this->zopfliExec = false;
+		}
+
+		$features = array_keys(array_filter(array(
+			'coffeescript'		 => $this->coffeeScriptExec,
+			'uglifyjs'			 => $this->uglifyjsExec && $this->optimizeScriptFiles,
+			'cleancss'			 => $this->cleancssExec && $this->optimizeCssFiles,
+			'gzip precompress'	 => $this->saveGzippedCopy && !$this->zopfliExec,
+			'zopfli precompress' => $this->saveGzippedCopy && $this->zopfliExec,
+			'combining js'		 => $this->combineScriptFiles,
+			'combining css'		 => $this->combineCssFiles,
+			'saving inline js'	 => $this->disableInlineScripts,
+			'lazyload'			 => $this->useLazyLoad,
+		)));
+		
+		if ($features) {
+			Yii::trace('Yiisset started with '.implode(', ', $features)).'.';
+		}
+		else {
+			Yii::trace('Yiisset satarted.');
+		}
+
+		parent::render($output);
+
+		$this->stopCounters('total');
+
+		arsort($this->counters);
+		$statistics = array();
+		foreach ($this->counters as $type => $time) {
+			$statistics[] = str_pad($type.':', 16)."\t\t".number_format($time, 4).'s';
+		}
+
+		Yii::trace("Yiisset completed.\nStatistics (slowest first):\n".implode("\n", $statistics));
+		
 	}
 
 	/**
@@ -817,8 +977,17 @@ class EClientScript extends CClientScript
 		if ($this->combineCssFiles) {
 			$this->combineCssFiles();
 		}
+
+		if ($this->optimizeCssFiles) {
+			$this->cleanCssFiles();
+		}
+
+		if ($this->saveGzippedCopy) {
+			$this->createGzippedCssFiles();
+		}
+
 		if ($this->enableJavaScript) {
-			$this->compileCoffeeScript(self::POS_HEAD);
+			$this->compileCoffeeScriptFiles(self::POS_HEAD);
 
 			if ($this->disableInlineScripts) {
 				$this->saveInlineCodeToFile(self::POS_HEAD);
@@ -828,10 +997,23 @@ class EClientScript extends CClientScript
 				$this->combineScriptFiles(self::POS_HEAD);
 			}
 
+			if ($this->optimizeScriptFiles) {
+				$this->uglifyScriptFiles(self::POS_HEAD);
+			}
+
 			if ($this->useLazyLoad) {
-				$this->lazyLoad(self::POS_HEAD);
+				// очерёдность вызовов важна: если lazyLoadCssFiles будет
+				// выполнен перед lazyLoadScriptFiles, подключение LazyLoad 
+				// будет удалено.
+				$this->lazyLoadScriptFiles(self::POS_HEAD);
+				$this->lazyLoadCssFiles();
 			}
 		}
+
+		if ($this->saveGzippedCopy) {
+			$this->createGzippedScriptFiles(self::POS_HEAD);
+		}
+
 		parent::renderHead($output);
 	}
 
@@ -843,7 +1025,7 @@ class EClientScript extends CClientScript
 	public function renderBodyBegin(&$output)
 	{
 		// $this->enableJavascript has been checked in parent::render()
-		$this->compileCoffeeScript(self::POS_BEGIN);
+		$this->compileCoffeeScriptFiles(self::POS_BEGIN);
 
 		if ($this->disableInlineScripts) {
 			$this->saveInlineCodeToFile(self::POS_BEGIN);
@@ -853,8 +1035,16 @@ class EClientScript extends CClientScript
 			$this->combineScriptFiles(self::POS_BEGIN);
 		}
 
+		if ($this->optimizeScriptFiles) {
+			$this->uglifyScriptFiles(self::POS_BEGIN);
+		}
+
 		if ($this->useLazyLoad) {
-			$this->lazyLoad(self::POS_BEGIN);
+			$this->lazyLoadScriptFiles(self::POS_BEGIN);
+		}
+
+		if ($this->saveGzippedCopy) {
+			$this->createGzippedScriptFiles(self::POS_BEGIN);
 		}
 
 		parent::renderBodyBegin($output);
@@ -868,7 +1058,7 @@ class EClientScript extends CClientScript
 	public function renderBodyEnd(&$output)
 	{
 		// $this->enableJavascript has been checked in parent::render()
-		$this->compileCoffeeScript(self::POS_END);
+		$this->compileCoffeeScriptFiles(self::POS_END);
 		
 		if ($this->disableInlineScripts) {
 			$this->saveInlineCodeToFile(self::POS_END);
@@ -878,8 +1068,16 @@ class EClientScript extends CClientScript
 			$this->combineScriptFiles(self::POS_END);
 		}
 
+		if ($this->optimizeScriptFiles) {
+			$this->uglifyScriptFiles(self::POS_END);
+		}
+
 		if ($this->useLazyLoad) {
-			$this->lazyLoad(self::POS_END);
+			$this->lazyLoadScriptFiles(self::POS_END);
+		}
+
+		if ($this->saveGzippedCopy) {
+			$this->createGzippedScriptFiles(self::POS_END);
 		}
 
 		parent::renderBodyEnd($output);
