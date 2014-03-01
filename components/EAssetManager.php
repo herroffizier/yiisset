@@ -18,7 +18,7 @@ class EAssetManager extends CAssetManager
      * 
      * @var string
      */
-	public $assetVersion = null;
+    public $assetVersion = null;
 
     /**
      * К рассчитанному 
@@ -26,9 +26,9 @@ class EAssetManager extends CAssetManager
      * @param  string $path
      * @return string
      */
-	protected function hash($path)
-	{
-		return parent::hash($path).($this->assetVersion ? '-'.$this->assetVersion : '');
-	}
+    protected function hash($path)
+    {
+        return parent::hash($path).($this->assetVersion ? '-'.$this->assetVersion : '');
+    }
 
 }
