@@ -75,6 +75,13 @@ class EClientScript extends CClientScript
     public $gzipExec = '/usr/bin/gzip';
 
     /**
+     * Аргументы для запуска gzip.
+     * 
+     * @var string
+     */
+    public $gzipArgs = '--best';
+
+    /**
      * Путь к исполняемому файлу Zopfli.
      * Zopfli может быть использован в качестве более эффективной замены Gzip.
      * Если путь некорректен или равен false, Zopfli не будет использован.
@@ -83,6 +90,13 @@ class EClientScript extends CClientScript
      * @var mixed 
      */
     public $zopfliExec = '/usr/bin/zopfli';
+
+    /**
+     * Аргументы для запуска Zopfli.
+     * 
+     * @var string
+     */
+    public $zopfliArgs = '-i20';
 
     /**
      * Путь к исполняемому файлу node.js.
@@ -117,6 +131,13 @@ class EClientScript extends CClientScript
     public $uglifyjsExec = '/usr/local/bin/uglifyjs';
 
     /**
+     * Аргументы для запуска uglify.js.
+     * 
+     * @var string
+     */
+    public $uglifyjsArgs = '-cm';
+
+    /**
      * Путь к минификатору clean-css.
      *
      * Требует корректного значения {@link nodeExec}
@@ -125,6 +146,13 @@ class EClientScript extends CClientScript
      * @var string
      */
     public $cleancssExec = '/usr/local/bin/cleancss';
+
+    /**
+     * Аргументы для запуска clean-css.
+     * 
+     * @var string
+     */
+    public $cleancssArgs = '--skip-import --skip-rebase --compatibility ie7';
 
     /**
      * Следует ли помещать все инлайновые скрипты в отдельный файл.
@@ -718,7 +746,7 @@ class EClientScript extends CClientScript
     {
         if (!$this->uglifyjsExec) return;
 
-        $cmd = $this->nodeExec.' '.escapeshellarg($this->uglifyjsExec).' #FROM_FILE# -o #TO_FILE#';
+        $cmd = $this->nodeExec.' '.escapeshellarg($this->uglifyjsExec).' #FROM_FILE#'.($this->uglifyjsArgs ? ' '.$this->uglifyjsArgs : '').' -o #TO_FILE#';
         $this->optimizeFile('Uglify.js', $cmd, $file);
     }
 
@@ -750,7 +778,7 @@ class EClientScript extends CClientScript
     {
         if (!$this->cleancssExec) return;
 
-        $cmd = $this->nodeExec.' '.escapeshellarg($this->cleancssExec).' --skip-import --skip-rebase --compatibility ie7 -o #TO_FILE# #FROM_FILE#';
+        $cmd = $this->nodeExec.' '.escapeshellarg($this->cleancssExec).($this->cleancssArgs ? ' '.$this->cleancssArgs : '').' -o #TO_FILE# #FROM_FILE#';
         $this->optimizeFile('clean-css', $cmd, $file);
     }
 
@@ -860,11 +888,11 @@ class EClientScript extends CClientScript
 
         if ($this->zopfliExec) {
             $tool = 'Zopfli';
-            $cmd = $this->zopfliExec.' #FROM_FILE#';
+            $cmd = $this->zopfliExec.($this->zopfliArgs ? ' '.$this->zopfliArgs : '').' #FROM_FILE#';
         }
         else {
             $tool = 'Gzip';
-            $cmd = $this->gzipExec.' --best --stdout #FROM_FILE# > #TO_FILE#';
+            $cmd = $this->gzipExec.($this->gzipArgs ? ' '.$this->gzipArgs : '').' --stdout #FROM_FILE# > #TO_FILE#';
         }
         
         $this->optimizeFile($tool, $cmd, $file, $gzippedFile);
@@ -961,15 +989,15 @@ class EClientScript extends CClientScript
         }
 
         $features = array_keys(array_filter(array(
-            'coffeescript'         => $this->coffeeScriptExec,
-            'uglifyjs'             => $this->uglifyjsExec && $this->optimizeScriptFiles,
-            'cleancss'             => $this->cleancssExec && $this->optimizeCssFiles,
-            'gzip precompress'     => $this->saveGzippedCopy && $this->gzipExec && !$this->zopfliExec,
-            'zopfli precompress' => $this->saveGzippedCopy && $this->zopfliExec,
-            'combining js'         => $this->combineScriptFiles,
+            'coffeescript'          => $this->coffeeScriptExec,
+            'uglifyjs'              => $this->uglifyjsExec && $this->optimizeScriptFiles,
+            'cleancss'              => $this->cleancssExec && $this->optimizeCssFiles,
+            'gzip precompress'      => $this->saveGzippedCopy && $this->gzipExec && !$this->zopfliExec,
+            'zopfli precompress'    => $this->saveGzippedCopy && $this->zopfliExec,
+            'combining js'          => $this->combineScriptFiles,
             'combining css'         => $this->combineCssFiles,
-            'saving inline js'     => $this->disableInlineScripts,
-            'lazyload'             => $this->useLazyLoad,
+            'saving inline js'      => $this->disableInlineScripts,
+            'lazyload'              => $this->useLazyLoad,
         )));
         
         if ($features) {

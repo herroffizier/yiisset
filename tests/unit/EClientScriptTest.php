@@ -87,6 +87,12 @@ class EClientScriptTest extends CTestCase {
                         'script2.js',
                     ),
                 ),
+                'coffeeScripts' => array(
+                    'basePath' => 'testdata',
+                    'js' => array(
+                        'script.coffee',
+                    ),
+                ),
             ),
         );
 
@@ -494,6 +500,58 @@ class EClientScriptTest extends CTestCase {
         $this->assertNotContains('this', $output);
         $scripts = $this->getScriptFiles($output);
         $this->assertCount(4, $scripts);
+    }
+
+    public function testUseLazyLoad()
+    {
+        $cs = $this->createCS();
+        $output = $this->render($cs, array(
+            'localStyles',
+            'localScripts',
+        ));
+        $styles = $this->getCssFiles($output);
+        $scripts = $this->getScriptFiles($output);
+        $this->assertCount(2, $styles);
+        $this->assertCount(2, $scripts);
+
+        $cs = $this->createCS(array(
+            'useLazyLoad' => true
+        ));
+        $output = $this->render($cs, array(
+            'localStyles',
+            'localScripts',
+        ));
+        $styles = $this->getCssFiles($output);
+        $scripts = $this->getScriptFiles($output);
+        $this->assertCount(0, $styles);
+        $this->assertCount(1, $scripts);
+    }
+
+    public function testCoffeeScript()
+    {
+        $this->assertFileExists(self::COFFEESCRIPT_EXEC);
+
+        $cs = $this->createCS();
+        $output = $this->render($cs, array(
+            'coffeeScripts',
+        ));
+        $scripts = $this->getScriptFiles($output);
+        $this->assertCount(1, $scripts);
+        $this->assertRegExp('/\.coffee$/', $scripts[0]);
+
+        $cs = $this->createCS(array(
+            'nodeExec' => self::NODE_EXEC,
+            'coffeeScriptExec' => self::COFFEESCRIPT_EXEC,
+        ));
+        $output = $this->render($cs, array(
+            'coffeeScripts',
+        ));
+
+        $scripts = $this->getScriptFiles($output);
+        $this->assertCount(1, $scripts);
+        $this->assertRegExp('/\.js$/', $scripts[0]);
+        $this->assertFileExists($scripts[0]);
+        $this->assertFileNotExists(preg_replace('/\.js$/', '.coffee', $scripts[0]));
     }
 
 }
