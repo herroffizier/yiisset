@@ -242,7 +242,8 @@ class EClientScript extends CClientScript
         foreach ($files as $file) {
             $raw .= "\0".$file.(file_exists($file) ? filemtime($file)."\0" : '');
         }
-        $ext = ($type === '' ? '' : '-'.$type).'-'.$this->hash($raw).'-'.$this->getAssetVersion();
+        $revision = $this->getAssetVersion();
+        $ext = ($type === '' ? '' : '-'.$type).'-'.$this->hash($raw).($revision ? '-'.$revision : '');
         $pos = strrpos($name, '.');
         $name = $pos === false ? $name . $ext : substr_replace($name, $ext, $pos, 0);
         return strtr($name, '+=/ ', '--__');
@@ -946,6 +947,7 @@ class EClientScript extends CClientScript
 
         if ($this->gzipExec && !file_exists($this->gzipExec)) {
             Yii::trace('No Gzip executable found, disabling Gzip compression');
+            $this->gzipExec = false;
         }
 
         if ($this->zopfliExec && !file_exists($this->zopfliExec)) {

@@ -225,7 +225,7 @@ LazyLoad = (function (doc) {
       if (isCSS) {
         attrs.href = url;
         attrs.rel = 'stylesheet';
-        node = env.gecko ? createNode('style') : createNode('link', attrs);
+        node = env.gecko ? createNode('style', attrs) : createNode('link', attrs);
       } else {
         attrs.src = url;
         node = createNode('script', attrs);
