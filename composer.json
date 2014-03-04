@@ -1,6 +1,10 @@
 {
     "name": "herroffizier/yiisset",
-    "version": "master",
+    "type": "library",
+    "description": "Client script alternative implementation for Yii with minifying, compressing, merging, parallel loading and CoffeeScript support",
+    "keywords": ["yii", "clientscript", "assetmanager", "js", "css", "uglifyjs", "cleancss", "clean-css", "coffee", "coffeescript", "lazyload", "gzip", "zopfli"],
+    "homepage": "https://github.com/herroffizier/yiisset",
+    "license": "MIT",
     "authors": [
         {
             "name": "Martin Stolz",
