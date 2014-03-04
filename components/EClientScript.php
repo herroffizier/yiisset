@@ -389,17 +389,22 @@ class EClientScript extends CClientScript
      *
      * @throws CException если после выполнения команды результирующий файл не был создан
      *
-     * @param  string                 $tool             название команды, используется для лога
-     * @param  string                  $command         команда, может содержать метки #FROM_FILE# и #TO_FILE#
-     * @param  string                  $fromFile         исходный (и результирующий, если $toFile = null) файл
-     * @param  string[optional]      $toFile         результирующий файл
-     * @param  boolean[optional]     $removeSource     удалять ли исходный файл в случае успеха
+     * @param  string                $tool              название команды, используется для лога
+     * @param  string                $command           команда, может содержать метки #FROM_FILE# и #TO_FILE#
+     * @param  string                $fromFile          исходный (и результирующий, если $toFile = null) файл
+     * @param  string[optional]      $toFile            результирующий файл
+     * @param  boolean[optional]     $removeSource      удалять ли исходный файл в случае успеха
      */
     protected function optimizeFile($tool, $command, $fromFile, $toFile = null, $removeSource = false) 
     {
-        $touchFile = $toFile ?: $fromFile.'.processed.'.preg_replace('/[\s\.]+/', '_', $tool);
+        $tokenizedTool = preg_replace('/[\s\.]+/', '_', $tool);
+        $touchFile = $toFile ?: $fromFile.'.processed.'.$tokenizedTool;
 
         if ($this->isNewer($fromFile, $touchFile)) return;
+
+        $lockFile = $fromFile.'.lock';
+        $lockFileHandle = fopen($lockFile, 'w+');
+        flock($lockFileHandle, LOCK_EX);
 
         if (!$toFile) {
             $useTempFile = true;
@@ -427,7 +432,7 @@ class EClientScript extends CClientScript
 
         if (file_exists($toFile)) {
             Yii::trace(
-                $tool.' saves '.number_format(filesize($fromFile) - filesize($toFile))." bytes for "
+                $tool.' saves '.number_format(filesize($fromFile) - filesize($toFile)).' bytes for '
                 .pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).'.'
             );
 
@@ -440,11 +445,16 @@ class EClientScript extends CClientScript
             if ($useTempFile) {
                 rename($fromFile, $toFile);
             }
+            fclose($lockFileHandle);
+            unlink($lockFile);
 
             throw new CException($tool.' failed to optimize '.($useTempFile ? $toFile : $fromFile).'.');
         }
 
         touch($touchFile);
+
+        fclose($lockFileHandle);
+        unlink($lockFile);
     }
 
     /**
@@ -462,7 +472,7 @@ class EClientScript extends CClientScript
 
         $compiledScriptFile = mb_substr($file, 0, mb_strlen($file) - 6).'js';
 
-        $this->optimizeFile('CoffeeScript', $cmd, $file, $compiledScriptFile, true);
+        $this->optimizeFile('CoffeeScript', $cmd, $file, $compiledScriptFile);
     }
 
     /**

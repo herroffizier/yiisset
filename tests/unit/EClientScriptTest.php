@@ -551,7 +551,7 @@ class EClientScriptTest extends CTestCase {
         $this->assertCount(1, $scripts);
         $this->assertRegExp('/\.js$/', $scripts[0]);
         $this->assertFileExists($scripts[0]);
-        $this->assertFileNotExists(preg_replace('/\.js$/', '.coffee', $scripts[0]));
+        $this->assertFileExists(preg_replace('/\.js$/', '.coffee', $scripts[0]));
     }
 
 }
