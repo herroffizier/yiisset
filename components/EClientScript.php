@@ -324,6 +324,11 @@ class EClientScript extends CClientScript
      */
     protected function isNewer($file, $copy)
     {
+        if (!file_exists($file) && file_exists($copy)) {
+            Yii::trace(basename($file).' is missing but copy ('.basename($copy).') exists.');
+            return true;
+        }
+
         if (!file_exists($copy)) {
             Yii::trace(basename($file).' has no copy ('.basename($copy).').');
             return false;

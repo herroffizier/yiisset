@@ -19,10 +19,14 @@ class EClientScriptTest extends CTestCase {
      */
     protected function initAM(array $params = array())
     {
+        $assetsDir = realpath(__DIR__.'/../assets');
+        if (!file_exists($assetsDir))
+            throw new CException($assetsDir.' is missing.');
+
         $params = array_merge(array(
             'class' => 'ext.EAssetManager',
-            'basePath' => realpath(__DIR__.'/../assets'),
-            'baseUrl' => realpath(__DIR__.'/../assets'),
+            'basePath' => $assetsDir,
+            'baseUrl' => $assetsDir,
         ), $params);
 
         Yii::app()->setComponent('assetManager', $params);
