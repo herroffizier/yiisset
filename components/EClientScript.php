@@ -177,6 +177,14 @@ class EClientScript extends CClientScript
     public $useLazyLoad = true;
 
     /**
+     * Проверять изменения файлов по CRC вместо даты изменения.
+     * Полезно использовать при отладке, когда EAssetManager::forceCopy = true.
+     * 
+     * @var boolean
+     */
+    public $compareFilesByCrc = false;
+
+    /**
      * Был ли подключен скрипт LazyLoad.
      * 
      * @var boolean
@@ -334,15 +342,31 @@ class EClientScript extends CClientScript
             return false;
         }
 
-        $cMtime = filemtime($copy);
-        $fMtime = filemtime($file);
-        if ($cMtime >= $fMtime) {
-            Yii::trace(basename($file).' copy ('.basename($copy).') is newer.');
+        $crcFile = $file.'.checksum';
+        $currentCrc = null;
+        if ($this->compareFilesByCrc && file_exists($crcFile)) {
+            $currentCrc = (string)crc32(file_get_contents($file));
+
+            $isNewer = file_get_contents($crcFile) === $currentCrc;
         }
         else {
-            Yii::trace(basename($file).' copy ('.basename($copy).') is out of date.');
+            $cMtime = filemtime($copy);
+            $fMtime = filemtime($file);
+            $isNewer = $cMtime >= $fMtime;
         }
-        return $cMtime >= $fMtime;
+
+        if ($this->compareFilesByCrc && (!file_exists($crcFile) || !$isNewer)) {
+            file_put_contents($crcFile, $currentCrc);
+        }
+
+        if ($isNewer) {
+            Yii::trace(basename($file).' copy ('.basename($copy).') is newer'.($currentCrc !== null ? ' (by CRC)' : '').'.');
+        }
+        else {
+            Yii::trace(basename($file).' copy ('.basename($copy).') is out of date'.($currentCrc !== null ? ' (by CRC)' : '').'.');
+        }
+
+        return $isNewer;
     }
 
     /**
@@ -451,7 +475,7 @@ class EClientScript extends CClientScript
                 rename($fromFile, $toFile);
             }
             fclose($lockFileHandle);
-            unlink($lockFile);
+            if (file_exists($lockFile)) unlink($lockFile);
 
             throw new CException($tool.' failed to optimize '.($useTempFile ? $toFile : $fromFile).'.');
         }
@@ -459,7 +483,7 @@ class EClientScript extends CClientScript
         touch($touchFile);
 
         fclose($lockFileHandle);
-        unlink($lockFile);
+        if (file_exists($lockFile)) unlink($lockFile);
     }
 
     /**
