@@ -42,20 +42,21 @@ class EClientScriptTest extends CTestCase {
     protected function createCS(array $params = array())
     {
         $defaults = array(
-            'combineScriptFiles'    => false,
-            'combineCssFiles'       => false,
-            'optimizeCssFiles'      => false,
-            'optimizeScriptFiles'   => false,
-            'saveGzippedCopy'       => false,
-            'gzipExec'              => null,
-            'zopfliExec'            => null,
-            'nodeExec'              => null,
-            'coffeeScriptExec'      => null,
-            'uglifyjsExec'          => null,
-            'cleancssExec'          => null,
-            'disableInlineScripts'  => false,
-            'useLazyLoad'           => false,
-            'packages'              => array(
+            'combineScriptFiles'        => false,
+            'combineCssFiles'           => false,
+            'optimizeCssFiles'          => false,
+            'optimizeScriptFiles'       => false,
+            'saveGzippedCopy'           => false,
+            'gzipExec'                  => null,
+            'zopfliExec'                => null,
+            'nodeExec'                  => null,
+            'coffeeScriptExec'          => null,
+            'uglifyjsExec'              => null,
+            'cleancssExec'              => null,
+            'disableInlineScripts'      => false,
+            'inlineScriptSizeThreshold' => 0,
+            'useLazyLoad'               => false,
+            'packages'                  => array(
                 'localStyles' => array(
                     'basePath' => 'testdata',
                     'css' => array(
@@ -503,7 +504,21 @@ class EClientScriptTest extends CTestCase {
         $output = $this->render($cs);
         $this->assertNotContains('this', $output);
         $scripts = $this->getScriptFiles($output);
-        $this->assertCount(4, $scripts);
+        $this->assertCount(4, $scripts); // 3 inline scripts + jquery
+
+        $cs = $this->createCS(array(
+            'disableInlineScripts' => true,
+            'inlineScriptSizeThreshold' => 1024,
+        ));
+        $cs->registerScript('inline_head', '// this is head script', $cs::POS_HEAD);
+        $cs->registerScript('inline_begin', '// this is begin script', $cs::POS_BEGIN);
+        $cs->registerScript('inline_ready', '// this is ready script', $cs::POS_READY);
+        $cs->registerScript('inline_onload', '// this is onload script', $cs::POS_LOAD);
+        $cs->registerScript('inline_end', '// this is end script', $cs::POS_END);
+        $output = $this->render($cs);
+        $this->assertContains('this', $output);
+        $scripts = $this->getScriptFiles($output);
+        $this->assertCount(1, $scripts); // jquery
     }
 
     public function testUseLazyLoad()

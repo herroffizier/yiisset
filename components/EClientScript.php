@@ -166,6 +166,15 @@ class EClientScript extends CClientScript
     public $disableInlineScripts = true;
 
     /**
+     * Минимальный размер инлайнового скрипта в байтах, после которого скрипт 
+     * будет сохранён в отдельный файл.
+     * Если указан 0, скрипт любого размера будет сохранён в файл.
+     * 
+     * @var integer
+     */
+    public $inlineScriptSizeThreshold = 1024;
+
+    /**
      * Следует ли использовать LazyLoad для подключения ресурсов на странице.
      * LazyLoad позволяет существенно сократить время загрузки страницы за счёт
      * параллельной загрузки различных ресурсов, что может быть крайне востребованным
@@ -400,7 +409,7 @@ class EClientScript extends CClientScript
      * @param  string[optional]      $toFile            результирующий файл
      * @param  boolean[optional]     $removeSource      удалять ли исходный файл в случае успеха
      */
-    protected function optimizeFile($tool, $command, $fromFile, $toFile = null, $removeSource = false) 
+    protected function processFile($tool, $command, $fromFile, $toFile = null, $removeSource = false) 
     {
         $tokenizedTool = preg_replace('/[\s\.]+/', '_', $tool);
         $touchFile = $toFile ?: $fromFile.'.processed.'.$tokenizedTool;
@@ -436,13 +445,23 @@ class EClientScript extends CClientScript
         }
 
         if (file_exists($toFile)) {
-            Yii::trace(
-                $tool.' saves '.number_format(filesize($fromFile) - filesize($toFile)).' bytes for '
-                .pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).'.'
-            );
+            $oldSize = filesize($fromFile);
+            $newSize = filesize($toFile);
+            $sizeDiff = abs($oldSize - $newSize);
 
+            if ($oldSize > $newSize) {
+                Yii::trace(
+                    $tool.' reduces '.pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).' size by '.number_format($sizeDiff).' bytes.'
+                );
+            }
+            else {
+                Yii::trace(
+                    $tool.' enlarges '.pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).' size by '.number_format(filesize($fromFile) - filesize($toFile)).' bytes.'
+                );
+            }
+            
             if ($useTempFile || (!$useTempFile && $removeSource)) {
-                Yii::trace('Removing '.$fromFile.' after successful optimization.');
+                Yii::trace('Removing '.$fromFile.' after successful processing.');
                 unlink($fromFile);
             }
         }
@@ -453,7 +472,7 @@ class EClientScript extends CClientScript
             fclose($lockFileHandle);
             unlink($lockFile);
 
-            throw new CException($tool.' failed to optimize '.($useTempFile ? $toFile : $fromFile).'.');
+            throw new CException($tool.' failed to process '.($useTempFile ? $toFile : $fromFile).'.');
         }
 
         touch($touchFile);
@@ -477,7 +496,7 @@ class EClientScript extends CClientScript
 
         $compiledScriptFile = mb_substr($file, 0, mb_strlen($file) - 6).'js';
 
-        $this->optimizeFile('CoffeeScript', $cmd, $file, $compiledScriptFile);
+        $this->processFile('CoffeeScript', $cmd, $file, $compiledScriptFile);
     }
 
     /**
@@ -664,26 +683,31 @@ class EClientScript extends CClientScript
             $code = implode("\n", $code);
         }
 
-        $fileName = 'inline-' . $this->hash($code) . '.js';
-        $inlineFile = Yii::app()->assetManager->basePath . DIRECTORY_SEPARATOR . $fileName;
-        $inlineUrl = Yii::app()->assetManager->baseUrl . DIRECTORY_SEPARATOR . $fileName;
+        if (!$this->inlineScriptSizeThreshold || strlen($code) >= $this->inlineScriptSizeThreshold) {
+            $fileName = 'inline-' . $this->hash($code) . '.js';
+            $inlineFile = Yii::app()->assetManager->basePath . DIRECTORY_SEPARATOR . $fileName;
+            $inlineUrl = Yii::app()->assetManager->baseUrl . DIRECTORY_SEPARATOR . $fileName;
 
-        if ($result = file_exists($inlineFile)) {
-            Yii::trace('Inline script is already saved in '.$inlineFile);
+            if ($result = file_exists($inlineFile)) {
+                Yii::trace('Inline script at '.$position.' is already saved in '.$inlineFile);
+            }
+            else {
+                Yii::trace('Saving inline script at '.$position.' into '.$inlineFile);
+                $result = file_put_contents($inlineFile, $code);
+            }
+
+            if ($result) {
+                $this->registerScriptFile($inlineUrl, $position);
+
+                unset($this->scripts[$position]);
+                if ($isEndPos) {
+                    unset($this->scripts[self::POS_READY]);
+                    unset($this->scripts[self::POS_LOAD]);
+                }
+            }
         }
         else {
-            Yii::trace('Saving inline script into '.$inlineFile);
-            $result = file_put_contents($inlineFile, $code);
-        }
-
-        if ($result) {
-            $this->registerScriptFile($inlineUrl, $position);
-
-            unset($this->scripts[$position]);
-            if ($isEndPos) {
-                unset($this->scripts[self::POS_READY]);
-                unset($this->scripts[self::POS_LOAD]);
-            }
+            Yii::trace('Inline script at '.$position.' is too small.');
         }
 
         $this->stopCounters('saving-inline');
@@ -762,7 +786,7 @@ class EClientScript extends CClientScript
         if (!$this->uglifyjsExec) return;
 
         $cmd = $this->nodeExec.' '.escapeshellarg($this->uglifyjsExec).' #FROM_FILE#'.($this->uglifyjsArgs ? ' '.$this->uglifyjsArgs : '').' -o #TO_FILE#';
-        $this->optimizeFile('Uglify.js', $cmd, $file);
+        $this->processFile('Uglify.js', $cmd, $file);
     }
 
     /**
@@ -794,7 +818,7 @@ class EClientScript extends CClientScript
         if (!$this->cleancssExec) return;
 
         $cmd = $this->nodeExec.' '.escapeshellarg($this->cleancssExec).($this->cleancssArgs ? ' '.$this->cleancssArgs : '').' -o #TO_FILE# #FROM_FILE#';
-        $this->optimizeFile('clean-css', $cmd, $file);
+        $this->processFile('clean-css', $cmd, $file);
     }
 
     /**
@@ -910,7 +934,7 @@ class EClientScript extends CClientScript
             $cmd = $this->gzipExec.($this->gzipArgs ? ' '.$this->gzipArgs : '').' --stdout #FROM_FILE# > #TO_FILE#';
         }
         
-        $this->optimizeFile($tool, $cmd, $file, $gzippedFile);
+        $this->processFile($tool, $cmd, $file, $gzippedFile);
     }
 
     /**
