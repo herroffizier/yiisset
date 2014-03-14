@@ -650,6 +650,8 @@ class EClientScript extends CClientScript
 
     /**
      * Получить строку со всеми инлайновыми скриптами в указанной позиции.
+     * Для позиции CClientScript::POS_END будут возвращены так же скрипты в 
+     * CClientScript::POS_READY и CClientScript::POS_LOAD.
      * Скрипты для позиций POS_READY and POS_LOAD will будут обёрнуты в функции
      * $(function() { ... }) и $(window).on('load', function() { ... }) соответственно.
      * 
@@ -658,9 +660,24 @@ class EClientScript extends CClientScript
      */
     protected function getInlineCode($position)
     {
-        if (empty($this->scripts[$position])) return '';
+        $isEndPos = $position === self::POS_END;
 
-        $code = implode("\n", $this->scripts[$position]);
+        if (
+            empty($this->scripts[$position])
+            && (
+                !$isEndPos
+                || (empty($this->scripts[self::POS_READY]) && empty($this->scripts[self::POS_LOAD])) 
+            )
+        ) {
+            return;
+        }
+
+        if (isset($this->scripts[$position])) {
+            $code = implode("\n", $this->scripts[$position]);
+        }
+        else {
+            $code = '';
+        }
         switch ($position) {
             case self::POS_READY:
                 $code = 'jQuery(function($){'.$code.'});';
@@ -671,7 +688,33 @@ class EClientScript extends CClientScript
                 break;
         }
 
+        if ($isEndPos) {
+            $code = array_filter(array(
+                $code, 
+                $this->getInlineCode(self::POS_READY), 
+                $this->getInlineCode(self::POS_LOAD),
+            )); 
+            $code = implode("\n", $code);
+        }
+
         return $code;
+    }
+
+    /**
+     * Удалить инлайновые скрипты в указанной позиции.
+     * Для CClientScript::POS_END удаляются так же и скрипты в 
+     * CClientScript::POS_READY и CClientScript::POS_LOAD.
+     * 
+     * @param  int $position
+     */
+    protected function clearInlineCode($position)
+    {
+        $isEndPos = $position === self::POS_END;
+        unset($this->scripts[$position]);
+        if ($isEndPos) {
+            unset($this->scripts[self::POS_READY]);
+            unset($this->scripts[self::POS_LOAD]);
+        }
     }
 
     /**
@@ -683,29 +726,10 @@ class EClientScript extends CClientScript
      */
     protected function saveInlineCodeToFile($position = self::POS_HEAD)
     {
-        $isEndPos = $position === self::POS_END;
-        if (
-            empty($this->scripts[$position])
-            && (
-                !$isEndPos
-                || (empty($this->scripts[self::POS_READY]) && empty($this->scripts[self::POS_LOAD])) 
-            )
-        ) {
-            return;
-        }
+        $code = $this->getInlineCode($position);
+        if (!$code) return;
 
         $this->startCounters('saving-inline');
-
-        $code = $this->getInlineCode($position);
-
-        if ($isEndPos) {
-            $code = array_filter(array(
-                $code, 
-                $this->getInlineCode(self::POS_READY), 
-                $this->getInlineCode(self::POS_LOAD),
-            )); 
-            $code = implode("\n", $code);
-        }
 
         if (!$this->inlineScriptSizeThreshold || strlen($code) >= $this->inlineScriptSizeThreshold) {
             $fileName = 'inline-' . $this->hash($code) . '.js';
@@ -722,12 +746,7 @@ class EClientScript extends CClientScript
 
             if ($result) {
                 $this->registerScriptFile($inlineUrl, $position);
-
-                unset($this->scripts[$position]);
-                if ($isEndPos) {
-                    unset($this->scripts[self::POS_READY]);
-                    unset($this->scripts[self::POS_LOAD]);
-                }
+                $this->clearInlineCode($position);
             }
         }
         else {
@@ -908,6 +927,8 @@ class EClientScript extends CClientScript
 
     /**
      * Загружать все скрипты в указанной позиции через LazyLoad.
+     * При этом, если в указанной позиции помимо файлов есть инлайновые скрипты,
+     * они будут выполнены только после того, как LazyLoad завершит свою работу.
      * 
      * @param  int $position
      */
@@ -927,7 +948,16 @@ class EClientScript extends CClientScript
             }
         }
 
-        $code = 'LazyLoad.js('.CJSON::encode($scriptFiles).');';
+        $inlineCode = $this->getInlineCode($position);
+        if ($inlineCode) {
+            $this->clearInlineCode($position);
+        }
+
+        $code = 'LazyLoad.js('.CJSON::encode($scriptFiles);
+        if ($inlineCode) {
+            $code .= ',function(){'.$inlineCode.';}';
+        }
+        $code .= ');';
         $this->registerScript('lazyLoad_scripts_'.$position, $code, $position);
 
         $this->scriptFiles[$position] = array();
