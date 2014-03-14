@@ -480,7 +480,7 @@ class EClientScript extends CClientScript
             }
             else {
                 Yii::trace(
-                    $tool.' enlarges '.pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).' size by '.number_format(filesize($fromFile) - filesize($toFile)).' bytes.'
+                    $tool.' enlarges '.pathinfo($useTempFile ? $toFile : $fromFile, PATHINFO_BASENAME).' size by '.number_format($sizeDiff).' bytes.'
                 );
             }
             
