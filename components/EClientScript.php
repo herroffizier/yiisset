@@ -194,11 +194,29 @@ class EClientScript extends CClientScript
     public $compareFilesByCrc = false;
 
     /**
+     * Имя компонента YiiCacheMutex в системе.
+     * Компонент используется для обработки файлов с использованием мьютексов.
+     * Если false или компонент с указанным именем недоступен, мьютексы
+     * не будут использоваться.
+     *
+     * @see https://github.com/herroffizier/yiicachemutex
+     * @var string
+     */
+    public $cacheMutexName = 'cacheMutex';
+
+    /**
      * Был ли подключен скрипт LazyLoad.
      * 
      * @var boolean
      */
     protected $lazyLoadRegistered = false;
+
+    /**
+     * Сcылка на компонент YiiCacheMutex.
+     * 
+     * @var YiiCacheMutex
+     */
+    protected $cacheMutex = null;
 
     /**
      * Счётчики времени для различных действий.
@@ -414,6 +432,36 @@ class EClientScript extends CClientScript
         }
     }
 
+    protected function lock($file)
+    {
+        if ($this->cacheMutex) {
+            $handle = __CLASS__.':'.$file;
+            $this->cacheMutex->acquire($handle);
+        }
+        else {
+            $lockFile = $file.'.lock';
+            $handle = fopen($lockFile, 'w+');
+            flock($handle, LOCK_EX);
+            $handle = array(
+                'handle' => $handle,
+                'file' => $lockFile,
+            );
+        }
+
+        return $handle;
+    }
+
+    protected function unlock($handle)
+    {
+        if ($this->cacheMutex) {
+            $this->cacheMutex->release($handle);
+        }
+        else {
+            fclose($handle['handle']);
+            if (file_exists($handle['file'])) unlink($handle['file']);
+        }
+    }
+
     /**
      * Обработать файл $fromFile командой $command, результатом выполнения
      * которой должен стать $toFile.
@@ -440,9 +488,7 @@ class EClientScript extends CClientScript
 
         if ($this->isNewer($fromFile, $touchFile)) return;
 
-        $lockFile = $fromFile.'.lock';
-        $lockFileHandle = fopen($lockFile, 'w+');
-        flock($lockFileHandle, LOCK_EX);
+        $lock = $this->lock($fromFile);
 
         if (!$toFile) {
             $useTempFile = true;
@@ -493,16 +539,14 @@ class EClientScript extends CClientScript
             if ($useTempFile) {
                 rename($fromFile, $toFile);
             }
-            fclose($lockFileHandle);
-            if (file_exists($lockFile)) unlink($lockFile);
+            $this->unlock($lock);
 
             throw new CException($tool.' failed to process '.($useTempFile ? $toFile : $fromFile).'.');
         }
 
         touch($touchFile);
 
-        fclose($lockFileHandle);
-        if (file_exists($lockFile)) unlink($lockFile);
+        $this->unlock($lock);
     }
 
     /**
@@ -1081,6 +1125,13 @@ class EClientScript extends CClientScript
             $this->saveGzippedCopy = false;
         }
 
+        if ($this->cacheMutexName && Yii::app()->hasComponent($this->cacheMutexName)) {
+            $this->cacheMutex = Yii::app()->getComponent($this->cacheMutexName);
+        }
+        else {
+            $this->cacheMutexName = false;
+        }
+
         $features = array_keys(array_filter(array(
             'coffeescript'          => $this->coffeeScriptExec,
             'uglifyjs'              => $this->uglifyjsExec && $this->optimizeScriptFiles,
@@ -1091,6 +1142,7 @@ class EClientScript extends CClientScript
             'combining css'         => $this->combineCssFiles,
             'saving inline js'      => $this->disableInlineScripts,
             'lazyload'              => $this->useLazyLoad,
+            'mutex file processing' => $this->cacheMutexName,
         )));
         
         if ($features) {
