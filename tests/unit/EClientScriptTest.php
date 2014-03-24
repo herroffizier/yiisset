@@ -102,11 +102,9 @@ class EClientScriptTest extends CTestCase {
         );
 
         $params = array_merge($defaults, $params);
+        $params['class'] = 'EClientScript';
 
-        $cs = new EClientScript;
-        foreach ($params as $k => $v) {
-            $cs->$k = $v;
-        }
+        $cs = Yii::createComponent($params);
         $cs->init();
 
         return $cs;
@@ -187,6 +185,8 @@ class EClientScriptTest extends CTestCase {
     {
         $cs = $this->createCS(array(
             'nodeExec' => 'path',
+            'optimizeCssFiles' => true,
+            'optimizeScriptFiles' => true,
         ));
         $this->render($cs);
         $this->assertFalse($cs->nodeExec);
@@ -202,24 +202,28 @@ class EClientScriptTest extends CTestCase {
 
         $cs = $this->createCS(array(
             'uglifyjsExec' => 'path',
+            'optimizeScriptFiles' => true,
         ));
         $this->render($cs);
         $this->assertFalse($cs->uglifyjsExec);
 
         $cs = $this->createCS(array(
             'cleancssExec' => 'path',
+            'optimizeCssFiles' => true,
         ));
         $this->render($cs);
         $this->assertFalse($cs->cleancssExec);
 
         $cs = $this->createCS(array(
             'gzipExec' => 'path',
+            'saveGzippedCopy' => true,
         ));
         $this->render($cs);
         $this->assertFalse($cs->gzipExec);
 
         $cs = $this->createCS(array(
             'zopfliExec' => 'path',
+            'saveGzippedCopy' => true,
         ));
         $this->render($cs);
         $this->assertFalse($cs->zopfliExec);
