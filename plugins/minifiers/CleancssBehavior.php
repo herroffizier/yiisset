@@ -47,8 +47,8 @@ class CleancssBehavior extends YiissetBaseBehavior {
 
         $this->owner->features[] = 'cleancss';
 
-        $this->owner->onOptimization->add(function(CEvent $event) {
-            if ($event->params['type'] !== 'css') return;
+        $this->owner->onOptimization->add(function(YiissetEvent $event) {
+            if ($event->type !== 'css') return;
 
             $this->cleancssFiles();
         });

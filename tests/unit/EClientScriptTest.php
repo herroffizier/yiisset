@@ -577,4 +577,27 @@ class EClientScriptTest extends CTestCase {
         $this->assertFileExists(preg_replace('/\.js$/', '.coffee', $scripts[0]));
     }
 
+    public function testJsDelivrCdn()
+    {
+        $packages = array(
+            'jsdelivr:jquery'           => 'http://cdn.jsdelivr.net/jquery/latest/mainfile',
+            'jsdelivr:jquery@1.5.2'     => 'http://cdn.jsdelivr.net/jquery/1.5.2/mainfile',
+            'js:jsdelivr:jquery@1'      => 'http://cdn.jsdelivr.net/jquery/1/mainfile',
+        );
+
+        $cs = $this->createCS();
+        $output = $this->render($cs, array_keys($packages));
+        $scripts = $this->getScriptFiles($output);
+        $this->assertCount(count($packages), $scripts);
+        $this->assertEquals(array_values($packages), $scripts);
+
+        $cs = $this->createCS(array(
+            'combineScriptFiles' => true,
+        ));
+        $output = $this->render($cs, array_keys($packages));
+        $scripts = $this->getScriptFiles($output);
+        $this->assertCount(1, $scripts);
+        $this->assertEquals('http://cdn.jsdelivr.net/g/jquery,jquery@1.5.2,jquery@1', $scripts[0]);
+    }
+
 }

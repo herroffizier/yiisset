@@ -33,10 +33,10 @@ class CoffeeScriptBehavior extends YiissetBaseBehavior {
 
         $this->owner->features[] = 'coffeescript compiling';
 
-        $this->owner->onOptimization->add(function(CEvent $event) {
-            if ($event->params['type'] !== 'js') return;
+        $this->owner->onOptimization->add(function(YiissetEvent $event) {
+            if ($event->type !== 'js') return;
 
-            $this->compileCoffeeScriptFiles($event->params['position']);
+            $this->compileCoffeeScriptFiles($event->position);
         });
     }
 

@@ -69,12 +69,12 @@ class GzipBehavior extends YiissetBaseBehavior {
             $this->owner->features[] = 'gzip precompressing';
         }
 
-        $this->owner->onAfterOptimization->add(function(CEvent $event) {
-            if ($event->params['type'] === 'css') {
+        $this->owner->onAfterOptimization->add(function(YiissetEvent $event) {
+            if ($event->type === 'css') {
                 $this->createGzippedCssFiles();
             }
             else {
-                $this->createGzippedScriptFiles($event->params['position']);
+                $this->createGzippedScriptFiles($event->position);
             }
         });
     }

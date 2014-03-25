@@ -38,13 +38,13 @@ class MergingBehavior extends YiissetBaseBehavior {
 
         $this->owner->features[] = 'merging files';
 
-        $this->owner->onBeforeOptimization->add(function(CEvent $event) {
-            if ($this->combineCssFiles && $event->params['type'] === 'css') {
+        $this->owner->onBeforeOptimization->add(function(YiissetEvent $event) {
+            if ($this->combineCssFiles && $event->type === 'css') {
                 $this->mergeCssFiles();
             }
 
-            if ($this->combineScriptFiles && $event->params['type'] === 'js') {
-                $this->mergeScriptFiles($event->params['position']);
+            if ($this->combineScriptFiles && $event->type === 'js') {
+                $this->mergeScriptFiles($event->position);
             }
         });
     }

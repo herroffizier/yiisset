@@ -47,10 +47,10 @@ class UglifyJsBehavior extends YiissetBaseBehavior {
 
         $this->owner->features[] = 'uglifyjs';
 
-        $this->owner->onOptimization->add(function(CEvent $event) {
-            if (!$this->optimizeScriptFiles || $event->params['type'] !== 'js') return;
+        $this->owner->onOptimization->add(function(YiissetEvent $event) {
+            if (!$this->optimizeScriptFiles || $event->type !== 'js') return;
 
-            $this->uglifyScriptFiles($event->params['position']);
+            $this->uglifyScriptFiles($event->position);
         });
     }
 

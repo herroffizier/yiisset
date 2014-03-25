@@ -26,9 +26,9 @@ class LazyLoadBehavior extends YiissetBaseBehavior {
 
         $this->owner->features[] = 'lazyload';
 
-        $this->owner->onAfterOptimization->add(function(CEvent $event) {
-            $this->lazyLoadScriptFiles($event->params['position']);
-            if ($event->params['position'] === CClientScript::POS_HEAD) {
+        $this->owner->onAfterOptimization->add(function(YiissetEvent $event) {
+            $this->lazyLoadScriptFiles($event->position);
+            if ($event->position === CClientScript::POS_HEAD) {
                 $this->lazyLoadCssFiles();
             }
         });

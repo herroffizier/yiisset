@@ -28,9 +28,9 @@ class InlineScriptBehavior extends YiissetBaseBehavior {
 
         $this->owner->features[] = 'saving inline code to file';
 
-        $this->owner->onBeforeOptimization->add(function(CEvent $event) {
-            if ($event->params['type'] !== 'js') return;
-            $this->saveInlineCodeToFile($event->params['position']);
+        $this->owner->onBeforeOptimization->add(function(YiissetEvent $event) {
+            if ($event->type !== 'js') return;
+            $this->saveInlineCodeToFile($event->position);
         });
     }
 

@@ -18,6 +18,10 @@ class EClientScript extends CClientScript
     public $cssFiles = array();
     public $scriptFiles = array();
 
+    /**
+     * Набор поведений
+     * @var array
+     */
     public $behaviors = array(
         'CoffeeScriptBehavior',
         'InlineScriptBehavior',
@@ -27,7 +31,8 @@ class EClientScript extends CClientScript
         'UglifyJsBehavior',
         'GzipBehavior',
         'LazyLoadBehavior',
-        'JsDelivrCdn',
+
+        'JsDelivrBehavior',
     );
 
     /**
@@ -50,7 +55,7 @@ class EClientScript extends CClientScript
      * Имя компонента YiiCacheMutex в системе.
      * Компонент используется для обработки файлов с использованием мьютексов.
      * Если false или компонент с указанным именем недоступен, мьютексы
-     * не будут использоваться.
+     * не будут использоваться, вместо них будет использован flock.
      *
      * @see https://github.com/herroffizier/yiicachemutex
      * @var string
@@ -120,7 +125,7 @@ class EClientScript extends CClientScript
 
     protected function raiseCustomEvent($eventName, $type, $position)
     {
-        $event = new CEvent($this, compact('type', 'position'));
+        $event = new YiissetEvent($this, $type, $position);
         $this->raiseEvent($eventName, $event);
     }
 
@@ -273,7 +278,7 @@ class EClientScript extends CClientScript
         }
 
         if ($isNewer) {
-            Yii::trace(basename($file).' copy ('.basename($copy).') is newer'.($currentCrc !== null ? ' (by CRC)' : '').'.');
+            Yii::trace(basename($file).' copy ('.basename($copy).') is actual'.($currentCrc !== null ? ' (by CRC)' : '').'.');
         }
         else {
             Yii::trace(basename($file).' copy ('.basename($copy).') is out of date'.($currentCrc !== null ? ' (by CRC)' : '').'.');
@@ -566,32 +571,33 @@ class EClientScript extends CClientScript
     public function registerCoreScript($name)
     {
         $matches = null;
-        if (preg_match('/([^:]+):([^:]+)(:(.+)|)/', $name, $matches)) {
-            if (isset($matches[4])) {
-                $type = $matches[1];
-                $cdn = $matches[2];
-                $script = $matches[4];
-            }
-            else {
-                $type = 'js';
-                $cdn = $matches[1];
-                $script = $matches[2];
-            }
-
-            if (!isset($this->cdn[$type])) {
-                $this->cdn[$type] = array();
-            }
-
-            if (!isset($this->cdn[$type][$cdn])) {
-                $this->cdn[$type][$cdn] = array();
-            }
-
-            $this->cdn[$type][$cdn][] = $script;
-
-            return $this;
+        if (!preg_match('/([^:]+):([^:]+)(:(.+)|)/', $name, $matches)) {
+            return parent::registerCoreScript($name);
         }
 
-        return parent::registerCoreScript($name);
+        if (isset($matches[4])) {
+            $type = $matches[1];
+            $cdn = $matches[2];
+            $script = $matches[4];
+        }
+        else {
+            $type = 'js';
+            $cdn = $matches[1];
+            $script = $matches[2];
+        }
+
+        if (!isset($this->cdn[$type])) {
+            $this->cdn[$type] = array();
+        }
+
+        if (!isset($this->cdn[$type][$cdn])) {
+            $this->cdn[$type][$cdn] = array();
+        }
+
+        $this->cdn[$type][$cdn][] = $script;
+        $this->hasScripts=true;
+
+        return $this;
     }
 
     /**
@@ -618,11 +624,11 @@ class EClientScript extends CClientScript
      * 
      * Теперь в описании package наравне с прежним синтаксисом можно исспользовать
      * такую форму записи:
-     *         'css' => array(
-     *             'style1.css',
-     *             'style2.css',
-     *             array('print.css', 'media' => 'print'),
-     *         ),
+     *     'css' => array(
+     *         'style1.css',
+     *         'style2.css',
+     *         array('print.css', 'media' => 'print'),
+     *     ),
      * 
      * @see  https://github.com/yiisoft/yii/issues/942
      */

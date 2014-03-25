@@ -1,6 +1,6 @@
 <?php
 
-class JsDelivrCdn extends CBehavior {
+class JsDelivrBehavior extends YiissetBaseBehavior {
     
     public function renderJsDelivrFiles($type, $scripts)
     {
