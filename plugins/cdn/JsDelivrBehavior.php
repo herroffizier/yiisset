@@ -1,6 +1,8 @@
 <?php
 
 class JsDelivrBehavior extends YiissetBaseBehavior {
+
+    public $jsDelivrHost = 'cdn.jsdelivr.net';
     
     public function renderJsDelivrFiles($type, $scripts)
     {
@@ -13,7 +15,7 @@ class JsDelivrBehavior extends YiissetBaseBehavior {
         if ($combined) {
             return array(
                 $protocol
-                .'://cdn.jsdelivr.net/g/'
+                .'://'.$this->jsDelivrHost.'/g/'
                 .implode(',', $scripts)
             );
         }
@@ -29,7 +31,7 @@ class JsDelivrBehavior extends YiissetBaseBehavior {
 
                 return
                     $protocol
-                    .'://cdn.jsdelivr.net/'
+                    .'://'.$this->jsDelivrHost.'/'
                     .$script.'/'
                     .$version.'/'
                     .'mainfile';
