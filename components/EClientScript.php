@@ -14,6 +14,11 @@
  */
 class EClientScript extends CClientScript
 {
+    const MODE_NORMAL   = 1;
+    const MODE_DELAY    = 2;
+    const MODE_RESTORE  = 3;
+    const MODE_SAVE     = 4;
+
     public $scripts = array();
     public $cssFiles = array();
     public $scriptFiles = array();
@@ -44,6 +49,31 @@ class EClientScript extends CClientScript
     public $features = array();
 
     /**
+     * Отложенная обработка файлов.
+     * Это экспериментальная фича и работает только в связке с Yiiq.
+     *
+     * Для того, чтобы выполнять обработку файлов в фоновом режиме,
+     * необходимо соблюсти ряд требований:
+     *     - У assetManager должен быть указан номер ревизии (assetVersion);
+     *     - Yiiq должен быть запущен под тем же пользователем, что и веб-сервер;
+     *     - Для консольного приложения должен быть указан путь к webroot;
+     *     - Для консольного приложения должны быть доступны компоненты assetManager и clientScript;
+     *     - Для консольного приложения у assetManager должны быть указаны basePath и baseUrl.
+     *
+     * @see  https://github.com/herroffizier/yiiq
+     * @var boolean
+     */
+    public $delayed = false;
+
+    /**
+     * Очередь в Yiiq для заданий удалённой обработки.
+     * Если null - используется стандартная очередь.
+     * 
+     * @var string
+     */
+    public $delayedQueue = null;
+
+    /**
      * Проверять изменения файлов по CRC вместо даты изменения.
      * Полезно использовать при отладке, когда EAssetManager::forceCopy = true.
      * 
@@ -68,6 +98,24 @@ class EClientScript extends CClientScript
      * @var YiiCacheMutex
      */
     protected $cacheMutex = null;
+
+    /**
+     * Режим работы.
+     * MODE_NORMAL - обычный режим, все остальные - для
+     * отложенной обработки файлов.
+     * 
+     * @var int
+     */
+    protected $mode = self::MODE_NORMAL;
+
+    /**
+     * Хеш состояния для отложенной обработки.
+     * Считается один раз при вызове getStateHash.
+     * Метод должен вызываться внутри render.
+     * 
+     * @var string
+     */
+    protected $stateHash = null;
 
     /**
      * Счётчики времени для различных действий.
@@ -125,6 +173,10 @@ class EClientScript extends CClientScript
 
     protected function raiseCustomEvent($eventName, $type, $position)
     {
+        // События для поведений вызываются только в нормальном режиме и режиме
+        // записи.
+        if (!in_array($this->mode, [self::MODE_NORMAL, self::MODE_SAVE])) return;
+        
         $event = new YiissetEvent($this, $type, $position);
         $this->raiseEvent($eventName, $event);
     }
@@ -154,12 +206,22 @@ class EClientScript extends CClientScript
      */
     public function init()
     {
+        // Если мы работаем внутри консольного приложения (Yiiq), добавляем недостающие методы приложению
+        // и выставляем соответствующий режим работы.
+        if (Yii::app() instanceof CConsoleApplication) {
+            $this->mode = self::MODE_SAVE;
+            Yii::app()->attachBehavior(
+                'YiissetConsoleBehavior', 
+                ['class' => 'yiisset.util.YiissetConsoleBehavior']
+            );
+        }
+
         // request
         $this->_baseUrl = Yii::app()->assetManager->baseUrl;
         $baseUrl = $this->_baseUrl . '/';
         $this->_baseUrlMap[$baseUrl] = Yii::app()->assetManager->basePath . DIRECTORY_SEPARATOR;
         // themes
-        if (Yii::app()->theme) {
+        if (Yii::app()->hasComponent('theme')) {
             $baseUrl = Yii::app()->theme->baseUrl . '/';
             $this->_baseUrlMap[$baseUrl] = Yii::app()->theme->basePath . DIRECTORY_SEPARATOR;
         }
@@ -201,6 +263,109 @@ class EClientScript extends CClientScript
     public function hash($string)
     {
         return sprintf('%x',crc32($string));
+    }
+
+    /**
+     * Получить хеш состояния.
+     * Состоит из hasScripts, coreScripts, cdn, scripts, scriptFiles и cssFiles.
+     * Должен считаться только внутри render.
+     * 
+     * @return string
+     */
+    protected function getStateHash()
+    {
+        if ($this->stateHash === null) {
+            $this->stateHash = md5(CJSON::encode($this->getState(true))).'@'.$this->getAssetVersion();
+        }
+
+        return $this->stateHash;
+    }
+
+    /**
+     * Получить имя файла состояния.
+     * 
+     * @return string
+     */
+    protected function getStateFilename()
+    {
+        return Yii::app()->assetManager->basePath.DIRECTORY_SEPARATOR.'state-'.$this->getStateHash().'.json';
+    }
+
+    /**
+     * Проверить, было ли сохранено текущее состояние
+     * ранее.
+     * 
+     * @return boolean
+     */
+    protected function isStateSaved()
+    {
+        return file_exists($this->getStateFilename());
+    }
+
+    /**
+     * Получить текущее состояние.
+     * 
+     * Флаг $full должен быть true, если метод вызывается после
+     * renderCoreScripts. В таком случае предполагается,
+     * что все файлы в coreScripts и cdn были помещены в соответствующие
+     * массивы scripts, scriptFiles и cssFiles.
+     * 
+     * @param  bool $full
+     * @return array
+     */
+    protected function getState($full)
+    {
+        return [
+            'hasScripts'    => $this->hasScripts,
+            'coreScripts'   => $full ? $this->coreScripts : null,
+            'cdn'           => $full ? $this->cdn : [],
+            'scripts'       => $this->scripts,
+            'scriptFiles'   => $this->scriptFiles,
+            'cssFiles'      => $this->cssFiles,
+        ];
+    }
+
+    /**
+     * Сохранить текущее состояние в файл.
+     * Метод должен вызываться после parent::render.
+     */
+    public function saveState()
+    {
+        return file_put_contents(
+            $this->getStateFilename(),
+            CJSON::encode($this->getState(false))
+        );
+    }
+
+    /**
+     * Восстановить состояние.
+     * 
+     * Если указан $hash, он заменяет собой рассчитанный
+     * ранее. Это используется в YiissetJob.
+     * 
+     * @param  array $state
+     * @param  string[optional] $hash
+     */
+    public function restoreState($state, $hash = null)
+    {
+        $this->hasScripts   = $state['hasScripts'];
+        $this->coreScripts  = $state['coreScripts'];
+        $this->cdn          = $state['cdn'];
+        $this->scripts      = $state['scripts'];
+        $this->scriptFiles  = $state['scriptFiles'];
+        $this->cssFiles     = $state['cssFiles'];
+
+        if ($hash) $this->stateHash = $hash;
+    }
+
+    /**
+     * Восстановить состояние из файла.
+     */
+    public function restoreStateFromFile()
+    {
+        $state = file_get_contents($this->getStateFilename());
+        $state = CJSON::decode($state);
+        $this->restoreState($state);
     }
 
     /**
@@ -510,6 +675,54 @@ class EClientScript extends CClientScript
     }
 
     /**
+     * Выполнить обработку файлов при взведённом флаге
+     * отложенной обработки.
+     * 
+     * @param  string &$output
+     */
+    protected function renderDelayed(&$output)
+    {
+        $hash = $this->getStateHash();
+
+        if ($this->mode === self::MODE_NORMAL) {
+            $this->features[] = 'delayed processing';
+
+            if ($this->isStateSaved()) {
+                // Состояние сохранено, восстанавливаемся.
+                $this->restoreStateFromFile();
+                $this->mode = self::MODE_RESTORE;
+
+                Yii::trace('Yiisset restored state '.$hash.'.');
+            }
+            else {
+                // Сохранённого состояния нет, нужно поставить задание на
+                // отложенную обработку после parent::render.
+                $this->mode = self::MODE_DELAY;
+
+                Yii::trace('Yiisset delays processing assets for state '.$hash.'.');
+            }
+        }
+
+        parent::render($output);
+
+        switch ($this->mode) {
+            case self::MODE_DELAY:
+                Yii::app()->yiiq->enqueueJob(
+                    'YiissetDelayedJob', 
+                    ['state' => $this->getState(true), 'hash' => $hash], 
+                    $this->delayedQueue ?: Yiiq::DEFAULT_QUEUE, 
+                    'yiiq-'.$hash
+                );
+                break;
+
+            case self::MODE_SAVE:
+                $this->saveState();
+                break;
+        }
+    }
+
+
+    /**
      * Код метода CClientScript::render() дополнен подсчётом статистики
      * и выводом отладочной информации в лог.
      * 
@@ -527,14 +740,32 @@ class EClientScript extends CClientScript
             $this->cacheMutexName = false;
         }
 
+        // Если выставлен флаг отложенной обработки, но
+        // не указана ревизия файлов или недоступен планировщик
+        // заданий Yiiq, снимаем флаг.
+        if (
+            $this->delayed 
+            && (
+                !$this->getAssetVersion() 
+                || !Yii::app()->hasComponent('yiiq')
+            )
+        ) {
+            $this->delayed = false;
+        }
+
         if ($this->features) {
             Yii::trace('Yiisset started with '.implode(', ', $this->features)).'.';
         }
         else {
-            Yii::trace('Yiisset satarted.');
+            Yii::trace('Yiisset started.');
         }
 
-        parent::render($output);
+        if ($this->delayed) {
+            $this->renderDelayed($output);
+        }
+        else {
+            parent::render($output);
+        }
 
         $this->stopCounters('total');
 
